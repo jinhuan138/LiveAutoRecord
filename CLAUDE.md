@@ -161,20 +161,24 @@ pnpm clean   # 删除所有 node_modules、lib、dist、.turbo
 
 ## 版本号
 
-不发布 npm 包，也不发布 GitHub Release。版本号直接手动修改各包 `package.json` 的 `version` 字段；CLI 的版本号在 `apps/cli/src/bin.ts` 的 `.version()` 中还有一份，需同步修改。客户端安装包的文件名和输出目录使用 `apps/electron/package.json` 的版本号。
+不发布 npm 包，不使用 Changesets。版本号直接手动修改各包 `package.json` 的 `version` 字段；CLI 的版本号在 `apps/cli/src/bin.ts` 的 `.version()` 中还有一份，需同步修改。客户端安装包的文件名、输出目录和 GitHub Release tag（`v<version>`）使用 `apps/electron/package.json` 的版本号。发新版前需升级客户端版本号，不覆盖其他提交已发布的版本。
 
 ## CI/CD
 
 ### GitHub Actions Workflows
 
-| Workflow         | 文件                   | 触发条件                   | 作用                                                             |
-| ---------------- | ---------------------- | -------------------------- | ---------------------------------------------------------------- |
-| Package for Test | `package_for_test.yml` | push 到任意分支 / 手动触发 | Windows + macOS 打包，安装包作为 artifact 上传（不发布 Release） |
+| Workflow         | 文件                   | 触发条件                      | 作用                                                                                         |
+| ---------------- | ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------- |
+| Package for Test | `package_for_test.yml` | 客户端版本实际变化 / 手动测试 | Windows + macOS 打包并上传 artifact；个人仓库 `master` 的版本变更推送还会自动上传到 Releases |
 
 ### CI 技术栈
 
 - `pnpm/action-setup@v4`：自动从 `packageManager` 字段读取 pnpm 版本
 - Node.js 24 + pnpm 缓存
+- 构建 job 仅有 `contents: read`，使用 `--publish never` 禁止 electron-builder 自动发布；待两个平台构建成功后，由独立 Release job 使用自动提供的 `GITHUB_TOKEN`（`contents: write`）创建 Release 和上传 exe/dmg，无需 PAT 或 npm token。
+- 每次 push 先用轻量 job 比较事件 `before` 提交与当前提交的客户端 `version`，只在字段实际变化时启动矩阵构建；比较整个 push 前后状态，支持一次推送多个提交，不以文件是否修改代替版本比较。首次分支推送、旧提交或版本无法读取时跳过自动构建；强推的旧提交不在历史中时先尝试按 SHA 获取。
+- 手动 `workflow_dispatch` 总是允许测试打包，产物仅上传 Artifacts，即使选择 `master` 也不发布 Release。
+- Release 仅由 `jinhuan138/LiveAutoRecord` 的 `master` 分支版本变更 push 创建，tag 指向当前构建提交；同一次发布运行可重跑并替换安装包，其他提交使用已发布版本号时停止发布并提示升版本。
 
 ## 开发原则
 

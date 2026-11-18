@@ -49,7 +49,7 @@
       "deleteAppDataOnUninstall": false
     }
   },
-  "repository": "https://github.com/WhiteMinds/LiveAutoRecord",
+  "repository": "https://github.com/jinhuan138/LiveAutoRecord",
   "author": "WhiteMind",
   "license": "LGPL",
   "dependencies": {

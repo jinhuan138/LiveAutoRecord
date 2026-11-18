@@ -1,4 +1,4 @@
-[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0) ![](https://img.shields.io/github/languages/top/WhiteMinds/trial-tower) ![](https://img.shields.io/github/issues/WhiteMinds/LiveAutoRecord) ![](https://img.shields.io/npm/v/@autorecord/manager?label=%40autorecord%2Fmanager) ![](https://img.shields.io/github/v/release/WhiteMinds/LiveAutoRecord?label=client) [![client-build](https://github.com/WhiteMinds/LiveAutoRecord/actions/workflows/release.yml/badge.svg)](https://github.com/WhiteMinds/LiveAutoRecord/actions/workflows/release.yml)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0) ![](https://img.shields.io/github/languages/top/WhiteMinds/trial-tower) ![](https://img.shields.io/github/issues/jinhuan138/LiveAutoRecord) ![](https://img.shields.io/npm/v/@autorecord/manager?label=%40autorecord%2Fmanager) ![](https://img.shields.io/github/v/release/jinhuan138/LiveAutoRecord?label=client) [![client-build](https://github.com/jinhuan138/LiveAutoRecord/actions/workflows/package_for_test.yml/badge.svg)](https://github.com/jinhuan138/LiveAutoRecord/actions/workflows/package_for_test.yml)
 
 <div align="center">
   <div align="center">
@@ -11,11 +11,11 @@
   <h3 align="center">Live Auto Record</h3>
   <p align="center">支持多个直播平台的自动录制工具 / NPM 包</p>
   <div align="center">
-    <a href="https://github.com/WhiteMinds/LiveAutoRecord/issues"
+    <a href="https://github.com/jinhuan138/LiveAutoRecord/issues"
       >Bug 反馈</a
     >
     ·
-    <a href="https://github.com/WhiteMinds/LiveAutoRecord/issues"
+    <a href="https://github.com/jinhuan138/LiveAutoRecord/issues"
       >功能建议</a
     >
     ·
@@ -44,7 +44,13 @@
 
 具有良好的键盘操作支持，预期上可以纯键盘操作。
 
-[进入下载页](https://github.com/WhiteMinds/LiveAutoRecord/releases/)
+[进入下载页](https://github.com/jinhuan138/LiveAutoRecord/releases/)
+
+自动打包仅在本次推送前后 `apps/electron/package.json` 的 `version` 实际变化时执行，普通代码或依赖修改不会启动打包。`master` 分支升版本后，Windows `.exe` 和 macOS `.dmg` 打包成功会自动上传到本仓库 Releases，无需手动上传或配置额外 token；其他分支升版本只生成 Actions Artifacts。
+
+需要测试时，可在 Actions 的 **Package for Test → Run workflow** 手动打包任意分支，手动运行只上传 Artifacts，不发布 Release。新分支首次推送或无法读取推送前版本时不自动打包，可手动测试。
+
+发布版本取自客户端 `package.json`（如 `4.12.0` 对应 `v4.12.0`），发新版前需手动升级版本号。已发布版本不会被其他提交覆盖；同一版本发布运行的重跑可重新上传安装包。
 
 #### 支持系统
 

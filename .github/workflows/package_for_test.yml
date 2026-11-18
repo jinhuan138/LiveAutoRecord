@@ -6,9 +6,84 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  check_version:
+    name: 检查客户端版本变化
+    if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.compare.outputs.should_build }}
+      version_changed: ${{ steps.compare.outputs.version_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 比较本次推送前后的 version 字段
+        id: compare
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const { execFileSync } = require('node:child_process')
+          const before = process.env.BEFORE_SHA
+          let shouldBuild = false
+          let versionChanged = false
+
+          if (process.env.EVENT_NAME === 'workflow_dispatch') {
+            shouldBuild = true
+            console.log('手动测试打包：仅上传 Artifacts，不发布 Release')
+          } else if (!before || /^0+$/.test(before)) {
+            console.log('首次推送分支没有旧版本可比较，跳过自动打包；需要测试可手动运行')
+          } else {
+            if (!/^[0-9a-f]{40}$/i.test(before)) {
+              throw new Error('推送前的提交标识无效')
+            }
+            const current = JSON.parse(fs.readFileSync('apps/electron/package.json', 'utf8')).version
+            if (typeof current !== 'string' || !/^\d+\.\d+\.\d+$/.test(current)) {
+              throw new Error('客户端版本号必须为 x.y.z 格式')
+            }
+            let previous
+            try {
+              const readPrevious = () => execFileSync('git', ['show', `${before}:apps/electron/package.json`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+              let contents
+              try {
+                contents = readPrevious()
+              } catch {
+                // 强推后旧提交可能不在当前历史中，尝试按 SHA 获取。
+                execFileSync('git', ['fetch', '--no-tags', 'origin', before], { stdio: ['ignore', 'pipe', 'pipe'] })
+                contents = readPrevious()
+              }
+              previous = JSON.parse(contents).version
+            } catch {
+              console.warn('::warning::无法读取推送前的客户端版本，跳过自动打包；可手动测试')
+            }
+            if (typeof previous === 'string') {
+              versionChanged = previous !== current
+              shouldBuild = versionChanged
+              console.log(`客户端版本：${previous} -> ${current}，${shouldBuild ? '开始打包' : '版本未变，跳过打包'}`)
+            }
+          }
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_build=${shouldBuild}\nversion_changed=${versionChanged}\n`)
+          NODE
+
   build:
     name: build on ${{ matrix.os }}
+    needs: check_version
+    if: needs.check_version.outputs.should_build == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -25,8 +100,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install
-      - run: pnpm app:build -p never
+      - run: pnpm install --frozen-lockfile
+      - name: 编译依赖并打包（不由 electron-builder 发布）
+        run: |
+          pnpm exec turbo run build --filter=@autorecord/electron^...
+          pnpm -F @autorecord/electron app:build --publish never
 
       - name: Upload Dmg
         if: matrix.os == 'macOS-latest'
@@ -34,6 +112,7 @@ jobs:
         with:
           name: Test Package Dmg
           path: apps/electron/build/**/*.dmg
+          if-no-files-found: error
 
       - name: Upload Exe
         if: matrix.os == 'windows-latest'
@@ -41,3 +120,59 @@ jobs:
         with:
           name: Test Package Exe
           path: apps/electron/build/**/*.exe
+          if-no-files-found: error
+
+  release:
+    name: 上传安装包到个人 Releases
+    needs: [check_version, build]
+    if: github.event_name == 'push' && needs.check_version.outputs.version_changed == 'true' && github.repository == 'jinhuan138/LiveAutoRecord' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 下载本次 Windows 和 macOS 安装包
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Test Package *
+          path: release-assets
+          merge-multiple: true
+      - name: 创建版本并上传 exe 和 dmg
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./apps/electron/package.json').version")
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::客户端版本号必须为 x.y.z 格式"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          shopt -s nullglob globstar
+          WINDOWS=(release-assets/**/*.exe)
+          MAC=(release-assets/**/*.dmg)
+          if (( ${#WINDOWS[@]} == 0 || ${#MAC[@]} == 0 )); then
+            echo "::error::缺少 Windows 或 macOS 安装包，停止发布"
+            exit 1
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # 同一次提交允许重跑；新提交必须先升版本，避免覆盖已发布版本。
+            TAG_SHA=$(gh api "repos/${GH_REPO}/commits/${TAG}" --jq '.sha')
+            if [[ "$TAG_SHA" != "$RELEASE_SHA" ]]; then
+              echo "::error::${TAG} 已对应其他提交，请先修改 apps/electron/package.json 的版本号"
+              exit 1
+            fi
+            gh release upload "$TAG" "${WINDOWS[@]}" "${MAC[@]}" --clobber
+          else
+            gh release create "$TAG" "${WINDOWS[@]}" "${MAC[@]}" \
+              --target "$RELEASE_SHA" --title "$TAG" --generate-notes
+          fi

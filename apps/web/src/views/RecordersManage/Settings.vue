@@ -366,8 +366,8 @@
           <tr>
             <td>{{ t('settings.feedback') }}</td>
             <td>
-              <a href="https://github.com/WhiteMinds/LiveAutoRecord/issues" target="_blank">
-                https://github.com/WhiteMinds/LiveAutoRecord/issues
+              <a href="https://github.com/jinhuan138/LiveAutoRecord/issues" target="_blank">
+                https://github.com/jinhuan138/LiveAutoRecord/issues
               </a>
             </td>
           </tr>
