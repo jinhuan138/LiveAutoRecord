@@ -5,7 +5,14 @@ import { API } from './api_types'
 import { asyncRouteHandler, createPagedResultGetter, getNumberFromQuery } from './utils'
 import * as db from '../db'
 import { assertStringType, replaceExtName } from '../utils'
-import { genSRTFile } from '../manager'
+import { genSRTFile, recorderManager } from '../manager'
+import {
+  cancelDanmakuBurn,
+  enqueueDanmakuBurn,
+  generateRecordASS,
+  getDanmakuBurnTask,
+  getDanmakuBurnTasks,
+} from '../danmaku_burn'
 
 const router = Router()
 
@@ -135,5 +142,51 @@ router.route('/records/:id/srt').post(
     })
   }),
 )
+
+router.route('/records/:id/ass').post(
+  asyncRouteHandler(async (req, res) => {
+    const { id } = req.params
+    const record = db.getRecord(id)
+    if (record == null || !fs.existsSync(replaceExtName(record.savePath, '.json'))) {
+      res.status(404).json({ payload: null })
+      return
+    }
+
+    const payload: API.createRecordASS.Resp = await generateRecordASS(record.savePath)
+    res.json({ payload })
+  }),
+)
+
+router.route('/danmaku_burn_tasks').get((req, res) => {
+  const payload: API.getDanmakuBurnTasks.Resp = getDanmakuBurnTasks()
+  res.json({ payload })
+})
+
+router
+  .route('/records/:id/danmaku_burn')
+  .get((req, res) => {
+    const payload: API.getDanmakuBurnTask.Resp = getDanmakuBurnTask(req.params.id) ?? null
+    res.json({ payload })
+  })
+  .post((req, res) => {
+    const { id } = req.params
+    const record = db.getRecord(id)
+    if (record == null || !fs.existsSync(record.savePath) || !fs.existsSync(replaceExtName(record.savePath, '.json'))) {
+      res.status(404).json({ payload: null })
+      return
+    }
+    // 异常退出的录制不会有 stopTimestamp，所以这里用是否有正在进行的录制来判断
+    if (recorderManager.recorders.some((recorder) => recorder.recordHandle?.id === id)) {
+      res.status(409).json({ payload: null, error: 'Record is still in progress' })
+      return
+    }
+
+    const payload: API.startDanmakuBurn.Resp = enqueueDanmakuBurn({ recordId: id, savePath: record.savePath })
+    res.json({ payload })
+  })
+  .delete((req, res) => {
+    const payload: API.cancelDanmakuBurn.Resp = cancelDanmakuBurn(req.params.id) ?? null
+    res.json({ payload })
+  })
 
 export { router }

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { recorderManager } from '../manager'
+import { onDanmakuBurnTaskUpdate } from '../danmaku_burn'
 import { memoizeDebounce } from '../utils'
 import { SSEMessage } from './api_types'
 import { SSE } from './sse'
@@ -21,6 +22,7 @@ function broadcastMessage(msg: SSEMessage) {
 export const scheduleBroadcastMessage = memoizeDebounce(broadcastMessage, 0, {
   resolver: (msg) => {
     if (msg.event === 'update_recorder') return msg.recorder.id
+    if (msg.event === 'danmaku_burn_task_update') return `danmaku_burn:${msg.task.recordId}`
     return msg
   },
 })
@@ -47,6 +49,12 @@ recorderManager.on('RecordStart', ({ recorder }) => {
   scheduleBroadcastMessage({
     event: 'record_start',
     recorder: recorderToClient(recorder),
+  })
+})
+onDanmakuBurnTaskUpdate((task) => {
+  scheduleBroadcastMessage({
+    event: 'danmaku_burn_task_update',
+    task,
   })
 })
 

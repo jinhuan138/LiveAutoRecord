@@ -19,6 +19,7 @@ import {
   updateRecordStopData,
 } from './db'
 import { ServerOpts } from './types'
+import { enqueueDanmakuBurn, initDanmakuBurn } from './danmaku_burn'
 import { parseSync, stringifySync } from 'subtitle'
 
 export type { RecorderExtra, ManagerConfig }
@@ -46,6 +47,7 @@ export function addRecorderWithAutoIncrementId(args: RecorderCreateOpts<Recorder
 
 export async function initRecorderManager(serverOpts: ServerOpts): Promise<void> {
   const { logger } = serverOpts
+  initDanmakuBurn(serverOpts)
 
   const managerConfig = readJSONFileSync<ManagerConfig>(managerConfigPath, defaultManagerConfig, serverOpts)
 
@@ -119,7 +121,8 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
       if (recordHandle.id !== recordId) return
       recorderManager.off('RecordStop', updateRecordOnceRecordStop)
 
-      const { autoGenerateSRTOnRecordStop, autoRemoveRecordWhenTinySize } = await serverOpts.getSettings()
+      const { autoGenerateSRTOnRecordStop, autoBurnDanmakuOnRecordStop, autoRemoveRecordWhenTinySize } =
+        await serverOpts.getSettings()
       if (
         autoRemoveRecordWhenTinySize &&
         (!fs.existsSync(recordHandle.savePath) || fs.statSync(recordHandle.savePath).size === 0)
@@ -140,10 +143,14 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
         stopReason: reason,
       })
 
-      if (autoGenerateSRTOnRecordStop) {
-        const extraDataPath = replaceExtName(recordHandle.savePath, '.json')
-        if (!fs.existsSync(extraDataPath)) return
+      const extraDataPath = replaceExtName(recordHandle.savePath, '.json')
+      if (!fs.existsSync(extraDataPath)) return
 
+      if (autoBurnDanmakuOnRecordStop) {
+        enqueueDanmakuBurn({ recordId, savePath: recordHandle.savePath, waitForFileStable: true })
+      }
+
+      if (autoGenerateSRTOnRecordStop) {
         await genSRTFile(extraDataPath, replaceExtName(recordHandle.savePath, '.srt'))
       }
     }

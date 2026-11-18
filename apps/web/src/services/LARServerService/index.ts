@@ -99,6 +99,26 @@ async function createRecordSRT(args: API.createRecordSRT.Args): Promise<API.crea
   return resp.data.payload
 }
 
+async function createRecordASS(args: API.createRecordASS.Args): Promise<API.createRecordASS.Resp> {
+  const resp = await requester.post<{ payload: API.createRecordASS.Resp }>(`/records/${args.id}/ass`)
+  return resp.data.payload
+}
+
+async function getDanmakuBurnTasks(args: API.getDanmakuBurnTasks.Args): Promise<API.getDanmakuBurnTasks.Resp> {
+  const resp = await requester.get<{ payload: API.getDanmakuBurnTasks.Resp }>('/danmaku_burn_tasks')
+  return resp.data.payload
+}
+
+async function startDanmakuBurn(args: API.startDanmakuBurn.Args): Promise<API.startDanmakuBurn.Resp> {
+  const resp = await requester.post<{ payload: API.startDanmakuBurn.Resp }>(`/records/${args.id}/danmaku_burn`)
+  return resp.data.payload
+}
+
+async function cancelDanmakuBurn(args: API.cancelDanmakuBurn.Args): Promise<API.cancelDanmakuBurn.Resp> {
+  const resp = await requester.delete<{ payload: API.cancelDanmakuBurn.Resp }>(`/records/${args.id}/danmaku_burn`)
+  return resp.data.payload
+}
+
 async function getRecordVideoURL(args: { id: string }): Promise<string> {
   return `${baseURL}/records/${args.id}/video`
 }
@@ -178,6 +198,10 @@ export const LARServerService = {
   getRecord,
   getRecordExtraData,
   createRecordSRT,
+  createRecordASS,
+  getDanmakuBurnTasks,
+  startDanmakuBurn,
+  cancelDanmakuBurn,
   getRecordVideoURL,
   getSettings,
   setSettings,

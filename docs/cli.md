@@ -21,7 +21,7 @@
    - [check](#check) — 一次性检查并录制
    - [watch](#watch) — 守护模式持续监控
    - [config](#config) — 查看或修改配置
-   - [records](#records) — 查看录制历史
+   - [records](#records) — 查看录制历史，生成 ASS 弹幕 / 压制弹幕版视频
    - [auth](#auth) — 管理平台鉴权
 4. [配置路径约定](#配置路径约定)
 5. [错误处理说明](#错误处理说明)
@@ -871,6 +871,74 @@ Showing 2 of 2 records
 ```
 
 `stopTimestamp` 和 `stopReason` 在录制进行中时可能不存在。
+
+#### records ass
+
+根据录制时保存的弹幕文件（与视频同名的 `.json`）生成滚动弹幕样式的 ASS 字幕，保存为视频旁边的 `.ass`（已存在时覆盖）。弹幕样式读取桌面端 / HTTP Server 共用的 `settings.json` 中的 `danmakuStyle`，字段说明见 [api.md 的 Settings 端点](./api.md#52-更新设置)。
+
+```
+lar records ass <id>
+```
+
+`<id>` 可以是完整 ID，也可以是 `lar records` 表格中显示的 ID 前缀。
+
+**JSON 输出 Schema**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "recordId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "assPath": "/data/.../2025-02-15 20-00-00 直播标题.ass",
+    "total": 1200,
+    "rendered": 856
+  }
+}
+```
+
+`rendered` 是实际写入的弹幕数，弹幕过密、屏幕放不下时会丢弃一部分。
+
+#### records burn
+
+把弹幕压制（烧录）进视频，输出为视频旁边的 `<原文件名>.弹幕版.mp4`，原视频保留。需要 ffmpeg 支持 `ass` 滤镜（项目内置的 ffmpeg-static 已支持）。
+
+```
+lar records burn <id> [options]
+```
+
+| 选项                  | 说明                                                           | 默认值                                        |
+| --------------------- | -------------------------------------------------------------- | --------------------------------------------- |
+| `--encoder <encoder>` | 视频编码器：`libx264` / `h264_nvenc` / `h264_qsv` / `h264_amf` | 设置中的 `danmakuBurnEncoder`，否则 `libx264` |
+| `--output <path>`     | 输出路径                                                       | `<原文件名>.弹幕版.mp4`                       |
+
+硬件编码器（NVENC / QSV / AMF）在当前机器不可用时会自动回退到 `libx264` 重试，结果中的 `encoder` 为实际使用的编码器。普通模式下进度输出到 stderr。
+
+```bash
+# 使用设置中的编码器压制
+lar records burn a1b2c3d4
+
+# 用 NVIDIA 显卡硬件编码
+lar records burn a1b2c3d4 --encoder h264_nvenc
+```
+
+**JSON 输出 Schema**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "recordId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "outputPath": "/data/.../2025-02-15 20-00-00 直播标题.弹幕版.mp4",
+    "encoder": "h264_nvenc",
+    "totalComments": 1200,
+    "renderedComments": 856
+  }
+}
+```
+
+失败时 `data.code` 给出原因：`NO_DANMAKU`（没有可压制的弹幕）、`NO_LIBASS`（ffmpeg 不支持 ass 滤镜）、`PROBE_FAILED`（无法读取视频信息）、`FFMPEG_FAILED`（编码失败）。
+
+> `records ass` / `records burn` 只读数据库，可以和 HTTP Server 同时运行；但不要对还在录制的视频执行。
 
 ---
 

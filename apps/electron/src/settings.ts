@@ -1,12 +1,9 @@
 import path from 'path'
 import { paths } from './env'
 import { readJSONFileSync, writeJSONFileSync } from './utils'
+import type { Settings } from '@autorecord/shared'
 
-export interface Settings {
-  notExitOnAllWindowsClosed: boolean
-  noticeOnRecordStart: boolean
-  debugMode?: boolean
-}
+export type { Settings }
 
 const settingsConfigPath = path.join(paths.config, 'settings.json')
 

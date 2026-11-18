@@ -192,6 +192,80 @@
       </v-form>
     </v-card-item>
 
+    <v-card-title>{{ t('settings.danmaku_burn') }}</v-card-title>
+
+    <v-card-item>
+      <div v-if="!settings || !danmakuStyle" class="text-center p-4">
+        <v-progress-circular indeterminate color="primary" />
+      </div>
+
+      <v-form v-else>
+        <v-checkbox
+          :label="t('settings.auto_burn_danmaku')"
+          v-model="settings.autoBurnDanmakuOnRecordStop"
+          hide-details
+        />
+
+        <v-select
+          class="mt-2"
+          :label="t('settings.danmaku_burn_encoder')"
+          v-model="settings.danmakuBurnEncoder"
+          :items="danmakuBurnEncoders.map((value) => ({ value, title: t(`settings.encoder_${value}`) }))"
+          :hint="t('settings.danmaku_burn_encoder_hint')"
+          persistent-hint
+        />
+
+        <v-text-field
+          class="mt-2"
+          :label="t('settings.danmaku_font_name')"
+          v-model="danmakuStyle.fontName"
+          persistent-placeholder
+          :placeholder="t('settings.danmaku_font_name_placeholder')"
+        />
+
+        <div class="grid grid-cols-2 gap-x-4">
+          <v-text-field
+            :label="t('settings.danmaku_font_size')"
+            v-model.number="danmakuStyle.fontSize"
+            type="number"
+            persistent-placeholder
+            placeholder="48"
+          />
+          <v-text-field
+            :label="t('settings.danmaku_opacity')"
+            v-model.number="danmakuStyle.opacity"
+            type="number"
+            step="0.1"
+            persistent-placeholder
+            placeholder="0.8"
+          />
+          <v-text-field
+            :label="t('settings.danmaku_scroll_duration')"
+            v-model.number="danmakuStyle.scrollDuration"
+            type="number"
+            persistent-placeholder
+            placeholder="10"
+          />
+          <v-text-field
+            :label="t('settings.danmaku_display_area')"
+            v-model.number="danmakuStyle.displayAreaRatio"
+            type="number"
+            step="0.1"
+            persistent-placeholder
+            placeholder="0.5"
+          />
+          <v-text-field
+            :label="t('settings.danmaku_time_offset')"
+            v-model.number="danmakuStyle.timeOffset"
+            type="number"
+            step="500"
+            persistent-placeholder
+            placeholder="0"
+          />
+        </div>
+      </v-form>
+    </v-card-item>
+
     <v-card-title>{{ t('settings.provider_auth') }}</v-card-title>
 
     <v-card-item>
@@ -336,6 +410,14 @@ const router = useRouter()
 const manager = ref<API.getManager.Resp>()
 const managerDefault = ref<API.getManagerDefault.Resp>()
 const settings = ref<API.getSettings.Resp>()
+const danmakuStyle = computed(() => settings.value?.danmakuStyle)
+// web 不直接依赖 @autorecord/shared，这里与 shared 里的 DanmakuBurnEncoders 保持一致
+const danmakuBurnEncoders: NonNullable<API.getSettings.Resp['danmakuBurnEncoder']>[] = [
+  'libx264',
+  'h264_nvenc',
+  'h264_qsv',
+  'h264_amf',
+]
 const savePathRuleAlertVisible = ref(false)
 const noticeFormatAlertVisible = ref(false)
 
@@ -362,6 +444,8 @@ onMounted(async () => {
   manager.value = await LARServerService.getManager({})
   managerDefault.value = await LARServerService.getManagerDefault({})
   settings.value = await LARServerService.getSettings({})
+  settings.value.danmakuBurnEncoder ??= 'libx264'
+  settings.value.danmakuStyle ??= {}
 
   // 加载 Provider 鉴权信息
   providers.value = await LARServerService.getProviders()
@@ -426,6 +510,7 @@ const apply = async () => {
 
   if (!settings.value) return
   settings.value.locale = innerLocale.value
+  settings.value.danmakuStyle = cleanDanmakuStyle(settings.value.danmakuStyle)
   const newSettings = await LARServerService.setSettings(settings.value)
   // TODO: 前端目前只有 RecordService 用到了 settings，为了降低开发复杂度，这里先直接赋值
   RecordService.noticeOnRecordStart = newSettings.noticeOnRecordStart
@@ -435,6 +520,12 @@ const apply = async () => {
 
 const reset = async () => {
   manager.value = { ...managerDefault.value }
+}
+
+/** 去掉留空的项（v-model.number 在输入框为空时会得到空字符串），让服务端使用默认值 */
+function cleanDanmakuStyle(style: API.getSettings.Resp['danmakuStyle']) {
+  if (style == null) return style
+  return Object.fromEntries(Object.entries(style).filter(([, value]) => value != null && value !== '')) as typeof style
 }
 
 const isChanged = computed(() => JSON.stringify(manager.value) !== JSON.stringify(managerDefault.value))

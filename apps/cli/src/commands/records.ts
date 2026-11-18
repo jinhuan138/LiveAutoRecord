@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { initManager } from '../core/manager-init'
 import { getRecords } from '../core/db'
 import { isJsonMode, outputJson, outputTable } from '../core/output'
+import { createRecordsASSCommand, createRecordsBurnCommand } from './records-danmaku'
 
 export function createRecordsCommand(): Command {
   return new Command('records')
@@ -9,6 +10,8 @@ export function createRecordsCommand(): Command {
     .option('--recorder-id <id>', 'Filter by recorder ID')
     .option('--limit <count>', 'Limit number of results', '50')
     .option('--offset <start>', 'Skip first N results', '0')
+    .addCommand(createRecordsASSCommand())
+    .addCommand(createRecordsBurnCommand())
     .addHelpText(
       'after',
       `
@@ -17,7 +20,9 @@ Examples:
   $ lar records --recorder-id 29        # filter by recorder
   $ lar records --limit 10              # show only 10 records
   $ lar records --offset 50 --limit 20  # pagination
-  $ lar records --json                  # JSON output`,
+  $ lar records --json                  # JSON output
+  $ lar records ass <id>                # generate ASS danmaku subtitle
+  $ lar records burn <id>               # burn danmaku into a new video`,
     )
     .action(async (opts: { recorderId?: string; limit: string; offset: string }) => {
       await initManager()

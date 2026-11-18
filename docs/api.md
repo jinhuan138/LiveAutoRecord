@@ -454,6 +454,108 @@ POST /api/records/clear_invalid
 
 ---
 
+### 3.7 生成 ASS 弹幕字幕
+
+```
+POST /api/records/:id/ass
+```
+
+基于录制的弹幕数据生成滚动弹幕样式的 ASS 字幕文件，保存在与视频文件同目录，扩展名为 `.ass`，已存在时覆盖。弹幕样式取自设置中的 `danmakuStyle`，画布宽高比与视频一致（探测失败时按 16:9）。
+
+生成的 `.ass` 可以直接用播放器（PotPlayer、mpv 等）外挂播放，也可以导入剪辑软件。
+
+**响应示例：**
+
+```json
+{
+  "payload": "2026-02-15 20-00-00 直播标题.ass"
+}
+```
+
+**错误：** 记录或附加数据文件不存在时返回 `{ "payload": null }`（HTTP 404）。
+
+---
+
+### 3.8 压制弹幕版视频
+
+```
+POST /api/records/:id/danmaku_burn
+```
+
+把弹幕烧录进视频，输出为同目录下的 `<原文件名>.弹幕版.mp4`（已存在时覆盖），原视频保留。编码器取自设置中的 `danmakuBurnEncoder`，硬件编码器失败时会自动回退到 `libx264` 重试。
+
+压制任务在服务端串行排队执行，接口立即返回任务对象，后续进度通过 SSE 事件 `danmaku_burn_task_update` 推送，也可以轮询 3.9。同一条记录已在排队或压制中时，直接返回现有任务。
+
+**响应：** `{ "payload": DanmakuBurnTask }`
+
+```json
+{
+  "payload": {
+    "recordId": "a1b2c3d4-...",
+    "status": "queued",
+    "progress": 0,
+    "createdAt": 1708003600000
+  }
+}
+```
+
+**DanmakuBurnTask 字段：**
+
+| 字段               | 类型   | 说明                                                                                          |
+| ------------------ | ------ | --------------------------------------------------------------------------------------------- |
+| `recordId`         | string | 录制记录 ID                                                                                   |
+| `status`           | string | `queued` / `running` / `success` / `failed` / `canceled`                                      |
+| `progress`         | number | 进度，0 ~ 1                                                                                   |
+| `encoder`          | string | 实际使用的编码器（回退后为 `libx264`），完成后才有                                            |
+| `outputFileName`   | string | 输出文件名（只返回文件名），成功后才有                                                        |
+| `totalComments`    | number | 弹幕总数                                                                                      |
+| `renderedComments` | number | 实际渲染的弹幕数（屏幕放不下的弹幕会被丢弃）                                                  |
+| `errorCode`        | string | 失败原因：`NO_DANMAKU`（没有弹幕）/ `NO_LIBASS`（ffmpeg 不支持 ass 滤镜）/ `FFMPEG_FAILED` 等 |
+| `error`            | string | 失败时的错误信息                                                                              |
+| `createdAt`        | number | 任务创建时间戳                                                                                |
+| `finishedAt`       | number | 任务结束时间戳                                                                                |
+
+> 任务状态只保存在内存中，服务重启后清空。
+
+**错误：**
+
+- 记录、视频文件或附加数据文件不存在时返回 `{ "payload": null }`（HTTP 404）
+- 该记录仍在录制中时返回 `{ "payload": null, "error": "Record is still in progress" }`（HTTP 409）
+
+---
+
+### 3.9 获取单条记录的压制任务
+
+```
+GET /api/records/:id/danmaku_burn
+```
+
+**响应：** `{ "payload": DanmakuBurnTask | null }`
+
+---
+
+### 3.10 取消压制任务
+
+```
+DELETE /api/records/:id/danmaku_burn
+```
+
+取消排队中或压制中的任务，未完成的输出文件会被删除。
+
+**响应：** `{ "payload": DanmakuBurnTask | null }`（没有对应任务时为 `null`）
+
+---
+
+### 3.11 获取全部压制任务
+
+```
+GET /api/danmaku_burn_tasks
+```
+
+**响应：** `{ "payload": DanmakuBurnTask[] }`
+
+---
+
 ## 4. Manager 端点
 
 Manager（管理器）控制全局录制行为，如自动检查、保存路径规则、FFmpeg 参数等。
@@ -622,8 +724,24 @@ PUT /api/settings
 | `debugMode`                    | boolean | 否   | 是否启用调试模式（输出 FFmpeg 日志等） |
 | `autoGenerateSRTOnRecordStop`  | boolean | 否   | 录制停止后自动生成 SRT 字幕            |
 | `autoRemoveRecordWhenTinySize` | boolean | 否   | 录制停止后自动删除大小为 0 的文件      |
+| `autoBurnDanmakuOnRecordStop`  | boolean | 否   | 录制停止后自动压制弹幕版视频           |
+| `danmakuBurnEncoder`           | string  | 否   | 压制编码器，见下表，默认 `libx264`     |
+| `danmakuStyle`                 | object  | 否   | 弹幕样式（ASS 生成与压制共用），见下表 |
 | `locale`                       | string  | 否   | 界面语言（`zh` / `en` / `ru`）         |
 | `sortMode`                     | string  | 否   | 录制器列表排序方式                     |
+
+**`danmakuBurnEncoder` 可选值：** `libx264`（CPU，兼容性最好）、`h264_nvenc`（NVIDIA）、`h264_qsv`（Intel 核显）、`h264_amf`（AMD）。
+
+**`danmakuStyle` 字段（均可省略，省略时使用默认值）：**
+
+| 字段               | 类型   | 默认值     | 说明                                            |
+| ------------------ | ------ | ---------- | ----------------------------------------------- |
+| `fontName`         | string | 按系统选择 | 字体，Windows 默认微软雅黑                      |
+| `fontSize`         | number | 48         | 字号，以 1080p 画面为基准，其他分辨率按比例缩放 |
+| `opacity`          | number | 0.8        | 不透明度，0 ~ 1                                 |
+| `scrollDuration`   | number | 10         | 一条弹幕从右到左滚过屏幕的秒数                  |
+| `displayAreaRatio` | number | 0.5        | 弹幕占屏幕高度的比例，0 ~ 1                     |
+| `timeOffset`       | number | 0          | 时间偏移（毫秒），正数延后、负数提前            |
 
 **请求示例：**
 
@@ -764,6 +882,17 @@ data: <JSON 数据>
 {
   "event": "settings_change",
   "settings": { ... }
+}
+```
+
+#### `danmaku_burn_task_update`
+
+弹幕压制任务状态或进度变化时触发（进度最多每秒推送一次）。
+
+```json
+{
+  "event": "danmaku_burn_task_update",
+  "task": { ... }
 }
 ```
 

@@ -10,6 +10,9 @@ import {
 import { Settings } from '@autorecord/shared'
 import { RecordModel } from '../db'
 import { RecorderExtra } from '../manager'
+import type { DanmakuBurnTask } from '../danmaku_burn'
+
+export type { DanmakuBurnTask, DanmakuBurnTaskStatus } from '../danmaku_burn'
 
 export interface PagedArgs {
   page: number
@@ -159,6 +162,45 @@ export namespace API {
     export type Resp = string
   }
 
+  export namespace createRecordASS {
+    export interface Args {
+      id: RecordModel['id']
+    }
+
+    /** 生成的 ass 文件名 */
+    export type Resp = string
+  }
+
+  export namespace getDanmakuBurnTasks {
+    export interface Args {}
+
+    export type Resp = DanmakuBurnTask[]
+  }
+
+  export namespace getDanmakuBurnTask {
+    export interface Args {
+      id: RecordModel['id']
+    }
+
+    export type Resp = DanmakuBurnTask | null
+  }
+
+  export namespace startDanmakuBurn {
+    export interface Args {
+      id: RecordModel['id']
+    }
+
+    export type Resp = DanmakuBurnTask
+  }
+
+  export namespace cancelDanmakuBurn {
+    export interface Args {
+      id: RecordModel['id']
+    }
+
+    export type Resp = DanmakuBurnTask | null
+  }
+
   export namespace getSettings {
     export interface Args {}
 
@@ -248,4 +290,15 @@ export interface SettingsChange {
   settings: Settings
 }
 
-export type SSEMessage = UpdateRecorder | AddRecorder | RemoveRecorder | RecordStart | SettingsChange
+export interface DanmakuBurnTaskUpdate {
+  event: 'danmaku_burn_task_update'
+  task: DanmakuBurnTask
+}
+
+export type SSEMessage =
+  | UpdateRecorder
+  | AddRecorder
+  | RemoveRecorder
+  | RecordStart
+  | SettingsChange
+  | DanmakuBurnTaskUpdate
