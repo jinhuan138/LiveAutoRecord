@@ -11,12 +11,11 @@ import {
   genRecorderUUID,
   genRecordUUID,
   createRecordExtraDataController,
-  Comment,
-  GiveGift,
 } from '@autorecord/manager'
 import { getInfo, getStream } from './stream'
-import { getAuthCookie, setAuthCookie } from './douyin_api'
+import { getAuthCookie, getRequestCookie, setAuthCookie } from './douyin_api'
 import { assertStringType, ensureFolderExist, replaceExtName, singleton } from './utils'
+import { createDouyinDanmakuClient, DouyinDanmakuClient } from './danmaku/client'
 
 function createRecorder(opts: RecorderCreateOpts): Recorder {
   // 内部实现时，应该只有 proxy 包裹的那一层会使用这个 recorder 标识符，不应该有直接通过
@@ -60,7 +59,7 @@ const ffmpegOutputOptions: string[] = ['-c', 'copy', '-movflags', 'frag_keyframe
 const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async function ({ getSavePath }) {
   if (this.recordHandle != null) return this.recordHandle
 
-  const { living, owner, title, roomId } = await getInfo(this.channelId)
+  const { living, owner, title, roomId, realRoomId, ownerUserId } = await getInfo(this.channelId)
   if (!living) return null
 
   this.state = 'recording'
@@ -100,7 +99,26 @@ const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async fun
   const extraDataController = createRecordExtraDataController(extraDataSavePath)
   extraDataController.setMeta({ title })
 
-  // TODO: 弹幕录制
+  let client: DouyinDanmakuClient | null = null
+  if (!this.disableProvideCommentsWhenRecording) {
+    client = createDouyinDanmakuClient({
+      webRid: roomId,
+      roomId: realRoomId,
+      userUniqueId: ownerUserId,
+      getCookie: getRequestCookie,
+    })
+    client.on('comment', (comment) => {
+      this.emit('Message', comment)
+      extraDataController.addMessage(comment)
+    })
+    client.on('gift', (gift) => {
+      this.emit('Message', gift)
+      extraDataController.addMessage(gift)
+    })
+    client.on('log', (text) => this.emit('DebugLog', { type: 'danmaku', text }))
+    // 弹幕连接的异常不应该影响到视频录制，所以 client 内部只会输出日志并自动重连
+    client.start()
+  }
 
   let isEnded = false
   const onEnd = (...args: unknown[]) => {
@@ -171,7 +189,8 @@ const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async fun
     // TODO: fluent-ffmpeg 好像没处理好这个 SIGINT 导致的退出信息，会抛一个错。
     command.kill('SIGINT')
     // TODO: 这里可能会有内存泄露，因为事件还没清，之后再检查下看看。
-    // client?.close()
+    client?.stop()
+    client?.all.clear()
     extraDataController.setMeta({ recordStopTimestamp: Date.now() })
     extraDataController.flush()
 

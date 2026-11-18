@@ -937,6 +937,32 @@ export function ensureFolderExist(fileOrFolderPath: string): void {
 - 同时写入 `RecordExtraDataController` 持久化到 JSON 文件
 - 停止录制时必须关闭弹幕客户端，避免内存泄露
 
+各平台的弹幕实现：
+
+| 平台 | 实现方式                                                                | 备注                            |
+| ---- | ----------------------------------------------------------------------- | ------------------------------- |
+| B站  | `blive-message-listener`                                                |                                 |
+| 斗鱼 | 自行实现的 WebSocket 客户端（`packages/douyu-recorder/src/dy_client/`） |                                 |
+| 虎牙 | `huya-danmu-fix`                                                        |                                 |
+| 抖音 | 自行实现的 WebSocket 客户端（`packages/douyin-recorder/src/danmaku/`）  | 礼物消息需要配置抖音登录 Cookie |
+
+#### 抖音弹幕客户端
+
+协议参考 [jwwsjlm/douyinLive](https://github.com/jwwsjlm/douyinLive)，由三个文件组成：
+
+- `signature.ts` — WebSocket 连接地址中 `signature` 参数的纯算法实现（MD5 → RC4 → 自定义字母表 base64），不需要执行网页 JS
+- `proto.ts` — 精简的 protobuf 定义（PushFrame / Response / ChatMessage / EmojiChatMessage / GiftMessage / ControlMessage），字段编号来自 douyinlive-proto
+- `client.ts` — 连接、心跳、ACK、断线重连（指数退避，重连时携带上次的 cursor / internal_ext）、消息去重和连击礼物合并
+
+注意事项：
+
+- 连接需要直播间的真实长 id（`enter` 接口返回的 `id_str`），而不是网页上的 web_rid
+- 握手请求必须携带 `ttwid` Cookie，所以使用 `ws` 库而不是 Node 原生 WebSocket（后者无法自定义请求头）
+- 表情弹幕（`WebcastEmojiChatMessage`）以文字形式（如 `[比心]`）保存并参与 ASS 生成和视频压制，同时在 `extra.emojiId` 中保留表情 ID；目前不下载或绘制表情图片
+- 未登录时只能收到弹幕，抖音只给携带有效登录 Cookie 的连接推送礼物消息
+- 连击礼物在连击结束（`repeatEnd`）或 10 秒无更新时只记录一条汇总，时间戳为连击开始的时间
+- `signature` 算法如果被抖音更换，表现为握手失败并不断重连，可在录制器的 DebugLog（type 为 `danmaku`）中看到相关日志
+
 ### 6.6 错误处理
 
 - 获取流信息失败时，必须将状态重置为 `'idle'`
@@ -948,13 +974,13 @@ export function ensureFolderExist(fileOrFolderPath: string): void {
 
 Recorder 需要在正确的时机发射以下事件：
 
-| 事件          | 触发时机        | 数据                                   |
-| ------------- | --------------- | -------------------------------------- |
-| `RecordStart` | FFmpeg 启动后   | `RecordHandle`                         |
-| `RecordStop`  | 录制结束后      | `{ recordHandle, reason }`             |
-| `Updated`     | 任意属性变化时  | 属性名数组（由 Proxy 自动处理）        |
-| `Message`     | 收到弹幕/礼物时 | `Comment \| GiveGift`                  |
-| `DebugLog`    | 调试日志        | `{ type: 'common' \| 'ffmpeg', text }` |
+| 事件          | 触发时机        | 数据                                                |
+| ------------- | --------------- | --------------------------------------------------- |
+| `RecordStart` | FFmpeg 启动后   | `RecordHandle`                                      |
+| `RecordStop`  | 录制结束后      | `{ recordHandle, reason }`                          |
+| `Updated`     | 任意属性变化时  | 属性名数组（由 Proxy 自动处理）                     |
+| `Message`     | 收到弹幕/礼物时 | `Comment \| GiveGift`                               |
+| `DebugLog`    | 调试日志        | `{ type: 'common' \| 'ffmpeg' \| 'danmaku', text }` |
 
 ### 6.8 构建和测试
 

@@ -26,6 +26,15 @@ export function getAuthCookie(): string | undefined {
   return authCookie
 }
 
+/**
+ * 获取请求抖音时实际使用的完整 cookie（cookie jar 自动管理的 ttwid 等 + 用户鉴权 cookie），
+ * 用于弹幕 WebSocket 这类不经过 requester 的连接。
+ */
+export async function getRequestCookie(): Promise<string> {
+  const jarCookie = await jar.getCookieString('https://live.douyin.com/')
+  return [jarCookie, authCookie].filter(Boolean).join('; ')
+}
+
 // 将用户鉴权 cookie 注入到请求中（追加到 cookie jar 自动管理的 ttwid 等 cookie 之后）
 requester.interceptors.request.use((config) => {
   if (authCookie) {
@@ -41,6 +50,9 @@ export async function getRoomInfo(
 ): Promise<{
   living: boolean
   roomId: string
+  /** 直播间的真实（长）id，弹幕协议需要用到它而不是 web room id */
+  realRoomId: string
+  ownerUserId: string
   owner: string
   title: string
   streams: StreamProfile[]
@@ -85,11 +97,15 @@ export async function getRoomInfo(
 
   const data = res.data.data
   const room = data.data[0]
+  const realRoomId = room?.id_str ?? data.enter_room_id
+  const ownerUserId = data.user.id_str
 
   if (room?.stream_url == null) {
     return {
       living: false,
       roomId: webRoomId,
+      realRoomId,
+      ownerUserId,
       owner: data.user.nickname,
       title: room?.title ?? data.user.nickname,
       streams: [],
@@ -121,6 +137,8 @@ export async function getRoomInfo(
     living: data.room_status === 0,
     // 接口里不会再返回 web room id，只能直接用入参原路返回了。
     roomId: webRoomId,
+    realRoomId,
+    ownerUserId,
     owner: data.user.nickname,
     title: room.title,
     streams,

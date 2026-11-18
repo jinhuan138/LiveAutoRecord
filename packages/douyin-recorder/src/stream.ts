@@ -8,6 +8,8 @@ export async function getInfo(channelId: string): Promise<{
   owner: string
   title: string
   roomId: string
+  realRoomId: string
+  ownerUserId: string
 }> {
   const info = await getRoomInfo(channelId)
 
@@ -16,6 +18,8 @@ export async function getInfo(channelId: string): Promise<{
     owner: info.owner,
     title: info.title,
     roomId: info.roomId,
+    realRoomId: info.realRoomId,
+    ownerUserId: info.ownerUserId,
   }
 }
 
