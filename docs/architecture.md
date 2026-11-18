@@ -18,7 +18,7 @@ LiveAutoRecord（LAR）是一个多直播平台自动录制工具，支持**斗�
 
 ### 2.1 包一览
 
-项目使用 **pnpm 10 Workspaces + Turborepo**（独立版本号，`@changesets/cli` 管理发布）管理，共 11 个包：
+项目使用 **pnpm 10 Workspaces + Turborepo**（独立版本号，手动维护）管理，共 11 个包：
 
 | 包名                            | 角色                                                                         | 发布到 npm |
 | ------------------------------- | ---------------------------------------------------------------------------- | ---------- |
@@ -655,4 +655,4 @@ Provider 只需声明 `authFlow`（loginURL + checkLoginResult 纯函数），�
 | HTTP     | axios 1.x                                                                |
 | 事件     | mitt (轻量级 EventEmitter)                                               |
 | 持久化   | JSON 文件 (Steno 原子写入)                                               |
-| Monorepo | pnpm 10 Workspaces + Turborepo + @changesets/cli                         |
+| Monorepo | pnpm 10 Workspaces + Turborepo                                           |

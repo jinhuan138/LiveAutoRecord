@@ -1,11 +1,10 @@
 name: Package for Test
 
 on:
+  workflow_dispatch:
   push:
-    branches-ignore:
-      - 'changeset-release/**'
-    tags-ignore:
-      - 'v*'
+    branches:
+      - '**'
 
 jobs:
   build:
@@ -18,8 +17,6 @@ jobs:
       # electron-builder 在 CI 机器上会因为 unpack ffmpeg-static 报错，参考了该修复方案：
       # https://github.com/electron-userland/electron-builder/issues/3179
       USE_HARD_LINKS: false
-      # 提供给 electron-builder 上传 release assets 时使用。
-      GITHUB_TOKEN: ${{ secrets.repo_contents_token }}
 
     steps:
       - uses: actions/checkout@v4
@@ -44,13 +41,3 @@ jobs:
         with:
           name: Test Package Exe
           path: apps/electron/build/**/*.exe
-
-  comment:
-    needs: [build]
-    name: Append links to the Pull Request
-    runs-on: ubuntu-latest
-    steps:
-      - uses: peter-evans/commit-comment@v2
-        with:
-          body: |
-            Packaging for test is done in [${{ github.run_id }}](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}})
