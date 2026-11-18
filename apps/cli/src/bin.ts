@@ -20,7 +20,7 @@ program
   .description(
     'LiveAutoRecord CLI - Multi-platform live stream auto-recorder\n\nSupported platforms: Bilibili, Douyu, Huya, Douyin',
   )
-  .version('0.1.0')
+  .version('0.2.0')
   .option('--json', 'Output in JSON format')
   .showHelpAfterError(true)
   .hook('preAction', (thisCommand) => {
