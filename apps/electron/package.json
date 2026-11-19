@@ -17,8 +17,18 @@
       "buildResources": "build/icons",
       "output": "build/${version}"
     },
+    "electronLanguages": [
+      "zh-CN",
+      "en-US",
+      "ru"
+    ],
     "files": [
-      "dist"
+      "dist",
+      "!**/node_modules/**/*.{map,d.ts,d.cts,d.mts}",
+      "!**/node_modules/fluent-ffmpeg/{coverage,doc}{,/**}",
+      "!**/node_modules/playwright{,-core}{,/**}",
+      "!**/node_modules/date-fns/{fp,cdn.*}{,/**}",
+      "!**/node_modules/date-fns/locale/!(_lib|en-US|en-US.*){,/**}"
     ],
     "mac": {
       "icon": "build/icons/icon.icns",
