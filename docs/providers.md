@@ -373,7 +373,8 @@ const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async fun
     })
     .on('stderr', timeoutChecker.update)
 
-  const ffmpegArgs = command._getArguments()
+  // 展示和持久化的参数必须脱敏，避免 -headers 中的 Cookie 等凭证随弹幕 json 泄露
+  const ffmpegArgs = redactFFmpegArgs(command._getArguments())
   extraDataController.setMeta({
     recordStartTimestamp: Date.now(),
     ffmpegArgs,

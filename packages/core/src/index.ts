@@ -19,6 +19,7 @@ export {
   updateManagerConfigFile,
   updateProviderAuthConfig,
 } from './data-file'
+export { redactRecordExtraDataFiles } from './record-extra-data'
 export {
   readJSONFileWithRecovery,
   rotateBackups,

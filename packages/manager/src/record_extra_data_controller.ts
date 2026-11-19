@@ -5,12 +5,14 @@
 import fs from 'fs'
 import { Message } from './common'
 import { asyncThrottle } from './utils'
+import { redactFFmpegArgs } from './sensitive'
 
 export interface RecordExtraData {
   meta: {
     title?: string
     recordStartTimestamp: number
     recordStopTimestamp?: number
+    /** 已脱敏，不包含 Cookie 等凭证 */
     ffmpegArgs?: string[]
     // TODO: 要再加个 video width / height，给之后可能会做的 ass 使用
   }
@@ -47,6 +49,10 @@ export function createRecordExtraDataController(savePath: string): RecordExtraDa
     data.meta = {
       ...data.meta,
       ...meta,
+    }
+    // 这个文件会被用户当作弹幕文件分享，所以写入前必须脱敏
+    if (meta.ffmpegArgs) {
+      data.meta.ffmpegArgs = redactFFmpegArgs(meta.ffmpegArgs)
     }
     scheduleSave()
   }

@@ -11,6 +11,7 @@ import {
   genRecorderUUID,
   genRecordUUID,
   createRecordExtraDataController,
+  redactFFmpegArgs,
 } from '@autorecord/manager'
 import { getInfo, getStream } from './stream'
 import { getAuthCookie, getRequestCookie, setAuthCookie } from './douyin_api'
@@ -169,7 +170,8 @@ const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async fun
       }
     })
     .on('stderr', timeoutChecker.update)
-  const ffmpegArgs = command._getArguments()
+  // 参数里的 Cookie 只用于实际执行，展示和持久化的都是脱敏后的版本
+  const ffmpegArgs = redactFFmpegArgs(command._getArguments())
   extraDataController.setMeta({
     recordStartTimestamp: Date.now(),
     ffmpegArgs,

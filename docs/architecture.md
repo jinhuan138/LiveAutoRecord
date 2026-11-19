@@ -392,11 +392,15 @@ interface RecordExtraData {
     title?: string
     recordStartTimestamp: number
     recordStopTimestamp?: number
-    ffmpegArgs?: string[]
+    ffmpegArgs?: string[] // 已脱敏，不含 Cookie 等凭证
   }
   messages: Message[] // 按时间戳排序的弹幕/礼物消息
 }
+```
 
+这个文件会被用户当作弹幕文件分享，所以 `ffmpegArgs` 在写入前会经过 `redactFFmpegArgs`（`packages/manager/src/sensitive.ts`）脱敏：`-headers` 中的 `Cookie` / `Authorization` / `Proxy-Authorization` 的值会被替换为 `<redacted>`。B站、抖音 Provider 中的 `recordHandle.ffmpegArgs` 同样是脱敏后的版本，实际执行的 ffmpeg 命令不受影响。旧版本写入的文件由 http-server 每次启动时在后台调用 `redactRecordExtraDataFiles`（`packages/core/src/record-extra-data.ts`）检查：只读取文件开头判断是否含未脱敏的凭证，有才改写。
+
+```typescript
 type Message = Comment | GiveGift
 ```
 
@@ -624,7 +628,7 @@ Provider 只需声明 `authFlow`（loginURL + checkLoginResult 纯函数），�
 4. 或通过 CLI：`lar auth set Bilibili --cookie "SESSDATA=xxx; bili_jct=xxx"`
 5. 验证：`lar auth list --json` 应显示 `isAuthenticated: true`
 6. 添加 B站直播间录制器，确认 `availableStreams` 包含原画选项
-7. 启动录制，检查 FFmpeg 命令行参数中是否包含 `Cookie:` header
+7. 启动录制，检查录制器详情中的 FFmpeg 参数包含 `Cookie: <redacted>`（实际执行的命令带有真实 Cookie），且录制生成的 `.json` 中不含 `SESSDATA`
 
 ---
 

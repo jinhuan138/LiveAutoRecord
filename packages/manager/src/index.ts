@@ -10,6 +10,7 @@ export * from './common'
 export * from './recorder'
 export * from './manager'
 export * from './record_extra_data_controller'
+export * from './sensitive'
 
 /**
  * 提供一些 utils

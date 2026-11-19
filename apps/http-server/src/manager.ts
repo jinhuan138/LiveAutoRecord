@@ -12,12 +12,14 @@ import {
   rotateBackups,
   updateManagerConfigFile,
   updateProviderAuthConfig,
+  redactRecordExtraDataFiles,
 } from '@autorecord/core'
 import type { RecorderExtra, ManagerConfig } from '@autorecord/core'
 import { pick, replaceExtName } from './utils'
 import {
   genRecorderIdInDB,
   getRecorders,
+  getRecords,
   insertRecord,
   insertRecorder,
   removeRecord,
@@ -187,6 +189,20 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
   recorderManager.on('RecorderAdded', (recorder) => insertRecorder(recorder.toJSON()))
   recorderManager.on('RecorderRemoved', (recorder) => removeRecorder(recorder.id))
   recorderManager.on('RecorderUpdated', ({ recorder }) => updateRecorder(recorder.toJSON()))
+
+  redactLegacyExtraDataFiles(serverOpts)
+}
+
+/** 旧版本写入的录制元信息 json 里可能有明文 Cookie，每次启动在后台检查并脱敏，不阻塞启动 */
+function redactLegacyExtraDataFiles({ logger }: ServerOpts): void {
+  const savePaths = getRecords().items.map((record) => record.savePath)
+  redactRecordExtraDataFiles(savePaths, (filePath, error) =>
+    logger.warn(`Failed to redact record extra data ${filePath}:`, error),
+  )
+    .then((redacted) => {
+      if (redacted > 0) logger.info(`Redacted credentials in ${redacted} record extra data files`)
+    })
+    .catch((error) => logger.error('Failed to redact record extra data files:', error))
 }
 
 /** recorderManager 上需要持久化的录制配置，鉴权配置单独由 saveProviderAuthConfig 保存 */
