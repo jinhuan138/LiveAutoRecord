@@ -11,8 +11,10 @@ import { Settings } from '@autorecord/shared'
 import { RecordModel } from '../db'
 import { RecorderExtra } from '../manager'
 import type { DanmakuBurnTask } from '../danmaku_burn'
+import type { DataRecoveryNotice } from '../data_recovery'
 
 export type { DanmakuBurnTask, DanmakuBurnTaskStatus } from '../danmaku_burn'
+export type { DataRecoveryNotice, DataFileKind } from '../data_recovery'
 
 export interface PagedArgs {
   page: number
@@ -261,6 +263,16 @@ export namespace API {
     export interface Args {
       id: string
     }
+    export type Resp = null
+  }
+
+  export namespace getDataRecoveryNotices {
+    export interface Args {}
+    export type Resp = DataRecoveryNotice[]
+  }
+
+  export namespace clearDataRecoveryNotices {
+    export interface Args {}
     export type Resp = null
   }
 }

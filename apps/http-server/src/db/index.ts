@@ -7,32 +7,41 @@
  * 之后记录条数多了性能有问题的话，可以考虑分表、限制表条数上限等方案。
  */
 import path from 'path'
-import fs from 'fs'
-import { Low, JSONFile, paths, assert, ensureFileFolderExists } from '@autorecord/core'
+import {
+  Low,
+  JSONFile,
+  paths,
+  assert,
+  ensureFileFolderExists,
+  createEmptyDatabase,
+  isDatabaseSchema,
+  readJSONFileWithRecovery,
+  rotateBackups,
+  DATA_BACKUP_INTERVAL,
+} from '@autorecord/core'
 import type { DatabaseSchema, RecordModel, RecorderModel, QueryRecordsOpts } from '@autorecord/core'
 import { asyncThrottle } from '../utils'
 import { ServerOpts } from '../types'
+import { reportDataRecovery } from '../data_recovery'
 
 export type { DatabaseSchema, RecordModel, RecorderModel, QueryRecordsOpts }
 
 const dbPath = path.join(paths.data, 'data.json')
 const adapter = new JSONFile<DatabaseSchema>(dbPath)
 const db = new Low(adapter)
+let logger: ServerOpts['logger'] = console
 
 export async function initDB(serverOpts: ServerOpts) {
-  try {
-    await db.read()
-  } catch (error) {
-    // 理论上这个文件的保存过程是原子化的不会损坏，但根据 https://github.com/WhiteMinds/LiveAutoRecord/issues/193 的反馈仍然出现了损坏的情况。
-    serverOpts.logger.error('Failed to read db:', error)
-    if (fs.existsSync(dbPath)) {
-      serverOpts.logger.debug('DB content', fs.readFileSync(dbPath, 'utf-8').toString())
-      fs.renameSync(dbPath, dbPath + '.bak')
-    }
+  logger = serverOpts.logger
+
+  // 理论上这个文件的保存过程是原子化的不会损坏，但根据 https://github.com/WhiteMinds/LiveAutoRecord/issues/193 的反馈仍然出现了损坏的情况，
+  // 所以读取时会校验数据结构，损坏时保留损坏文件并从最近一份有效的备份恢复。
+  const recovery = readJSONFileWithRecovery<DatabaseSchema>(dbPath, { validate: isDatabaseSchema })
+  reportDataRecovery('database', recovery, serverOpts)
+  if (recovery.status === 'ok') {
+    backupDB(0)
   }
-  if (db.data == null) {
-    db.data = { records: [], recorders: [], nextRecorderId: 1 }
-  }
+  db.data = recovery.data ?? createEmptyDatabase()
 
   // 这里做一些旧版本 schema 升级的处理
   if (db.data.recorders == null) {
@@ -46,11 +55,19 @@ function assertDBReady<T>(db: Low<T>): asserts db is Low<T> & { data: T } {
   return assert(db.data, 'Must initialize the db before using it')
 }
 
-// TODO: 可能需要一个双文件缓冲写入的机制，防止意外情况写入中断文件损坏，lowdb 好像已经做了？
+function backupDB(minIntervalMs: number) {
+  try {
+    rotateBackups(dbPath, { minIntervalMs })
+  } catch (error) {
+    logger.error('Failed to backup db:', error)
+  }
+}
+
 // TODO: 测试暂时用 1s
-const scheduleSave = asyncThrottle(() => {
+const scheduleSave = asyncThrottle(async () => {
   ensureFileFolderExists(dbPath)
-  return db.write()
+  await db.write()
+  backupDB(DATA_BACKUP_INTERVAL)
 }, 1e3)
 
 export function getRecord(id: RecordModel['id']): RecordModel | undefined {

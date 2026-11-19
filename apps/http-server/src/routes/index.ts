@@ -3,6 +3,7 @@ import { router as recorderRoutes } from './recorder'
 import { router as recordRoutes } from './record'
 import { router as managerRoutes } from './manager'
 import { router as eventRoutes } from './event'
+import { router as dataRecoveryRoutes } from './data_recovery'
 import { createRouter as createSettingRouter } from './setting'
 import { createRouter as createLoggerRouter } from './logger'
 import { createRouter as createProviderRouter } from './provider'
@@ -17,6 +18,7 @@ export function createRouter(serverOpts: ServerOpts) {
   router.use(recordRoutes)
   router.use(managerRoutes)
   router.use(eventRoutes)
+  router.use(dataRecoveryRoutes)
   const settingRoutes = createSettingRouter(serverOpts)
   router.use(settingRoutes)
   const loggerRoutes = createLoggerRouter(serverOpts)

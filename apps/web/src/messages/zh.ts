@@ -157,4 +157,13 @@ export default {
     danmaku_file_not_exists: '没有找到弹幕文件',
     invalid_record_removed: '共 {count} 条无效记录被移除',
   },
+
+  data_recovery: {
+    title: '数据文件已恢复',
+    file_database: '录制数据',
+    file_manager_config: '录制配置（含平台登录信息）',
+    restored: '「{file}」读取失败，已从 {time} 的备份中恢复，此后的改动可能丢失。',
+    reset: '「{file}」读取失败且没有可用的备份，已重置为空，需要重新配置。',
+    corrupted_kept: '损坏的文件已保留在：{path}',
+  },
 }

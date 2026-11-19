@@ -11,6 +11,21 @@ export type {
 } from './types'
 export { managerConfigKeys } from './types'
 export {
+  DATA_BACKUP_INTERVAL,
+  createEmptyDatabase,
+  isDatabaseSchema,
+  isManagerConfig,
+  readManagerConfigFile,
+  updateManagerConfigFile,
+  updateProviderAuthConfig,
+} from './data-file'
+export {
+  readJSONFileWithRecovery,
+  rotateBackups,
+  type JSONFileRecoveryResult,
+  type JSONFileRecoveryStatus,
+} from '@autorecord/shared'
+export {
   generateDanmakuASS,
   resolveDanmakuStyle,
   getDefaultDanmakuFontName,

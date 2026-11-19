@@ -45,3 +45,4 @@ export interface ClientAPI {
 
 export * from './steno'
 export * from './jsonfile'
+export * from './backup'

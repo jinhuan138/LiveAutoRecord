@@ -1114,7 +1114,53 @@ DELETE /api/providers/:id/auth
 
 ---
 
-## 9. 类型定义
+## 9. 数据恢复提示端点
+
+启动时 `data.json` 或 `manager.json` 读取/校验失败会自动从备份恢复（见 [architecture.md](./architecture.md) 4.2.1），产生的提示保存在内存中，供前端展示。
+
+### 9.1 获取恢复提示
+
+```
+GET /api/data_recovery_notices
+```
+
+**响应：**
+
+```json
+{
+  "payload": [
+    {
+      "file": "database",
+      "status": "restored",
+      "corruptedPath": "/path/to/data.json.corrupt-2025-01-01T00-00-00-000Z",
+      "restoredFrom": "/path/to/data.json.bak.1",
+      "restoredFromTime": 1735689600000
+    }
+  ]
+}
+```
+
+| 字段               | 类型                            | 说明                                  |
+| ------------------ | ------------------------------- | ------------------------------------- |
+| `file`             | `'database' \| 'managerConfig'` | 发生恢复的文件                        |
+| `status`           | `'restored' \| 'reset'`         | 从备份恢复 / 没有可用备份而重置为空   |
+| `corruptedPath`    | string                          | 损坏文件的保留路径                    |
+| `restoredFrom`     | string?                         | 用于恢复的备份文件（仅 `restored`）   |
+| `restoredFromTime` | number?                         | 备份的创建时间戳（ms，仅 `restored`） |
+
+### 9.2 清除恢复提示
+
+```
+DELETE /api/data_recovery_notices
+```
+
+用户确认后清除内存中的提示。
+
+**响应：** `{ "payload": null }`
+
+---
+
+## 10. 类型定义
 
 ### ClientRecorder
 

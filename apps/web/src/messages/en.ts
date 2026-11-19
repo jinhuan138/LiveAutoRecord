@@ -162,4 +162,14 @@ export default {
     danmaku_file_not_exists: 'Danmaku file not found',
     invalid_record_removed: 'A total of {count} invalid records have been removed',
   },
+
+  data_recovery: {
+    title: 'Data files recovered',
+    file_database: 'Recording data',
+    file_manager_config: 'Recording settings (including platform logins)',
+    restored:
+      '{file} could not be read and was restored from the backup at {time}. Changes made after that may be lost.',
+    reset: '{file} could not be read and no valid backup was found. It has been reset to empty.',
+    corrupted_kept: 'The corrupted file has been kept at: {path}',
+  },
 }

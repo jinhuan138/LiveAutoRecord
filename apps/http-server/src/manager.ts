@@ -5,9 +5,16 @@ import { provider as providerForDouYu } from '@autorecord/douyu-recorder'
 import { provider as providerForBilibili } from '@autorecord/bilibili-recorder'
 import { provider as providerForHuYa } from '@autorecord/huya-recorder'
 import { provider as providerForDouYin } from '@autorecord/douyin-recorder'
-import { paths } from '@autorecord/core'
+import {
+  paths,
+  managerConfigKeys,
+  readManagerConfigFile,
+  rotateBackups,
+  updateManagerConfigFile,
+  updateProviderAuthConfig,
+} from '@autorecord/core'
 import type { RecorderExtra, ManagerConfig } from '@autorecord/core'
-import { pick, readJSONFileSync, replaceExtName, writeJSONFileSync } from './utils'
+import { pick, replaceExtName } from './utils'
 import {
   genRecorderIdInDB,
   getRecorders,
@@ -20,6 +27,7 @@ import {
 } from './db'
 import { ServerOpts } from './types'
 import { enqueueDanmakuBurn, initDanmakuBurn } from './danmaku_burn'
+import { reportDataRecovery } from './data_recovery'
 import { parseSync, stringifySync } from 'subtitle'
 
 export type { RecorderExtra, ManagerConfig }
@@ -49,7 +57,15 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
   const { logger } = serverOpts
   initDanmakuBurn(serverOpts)
 
-  const managerConfig = readJSONFileSync<ManagerConfig>(managerConfigPath, defaultManagerConfig, serverOpts)
+  const { config: managerConfig, recovery } = readManagerConfigFile(managerConfigPath, defaultManagerConfig)
+  reportDataRecovery('managerConfig', recovery, serverOpts)
+  if (recovery.status === 'ok') {
+    try {
+      rotateBackups(managerConfigPath)
+    } catch (error) {
+      logger.error('Failed to backup manager config:', error)
+    }
+  }
 
   // 这里做一些旧版本 schema 升级的处理
   if (managerConfig.ffmpegOutputArgs == null) {
@@ -62,12 +78,14 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
     managerConfig.autoRemoveSystemReservedChars = true
   }
 
-  Object.assign(recorderManager, managerConfig)
+  // 鉴权配置只交给 provider，不挂到 recorderManager 上
+  const { providerAuthConfigs, ...managerOpts } = managerConfig
+  Object.assign(recorderManager, managerOpts)
 
   // 加载并应用各 Provider 的鉴权配置
-  if (managerConfig.providerAuthConfigs) {
+  if (providerAuthConfigs) {
     for (const provider of recorderManager.providers) {
-      const authConfig = managerConfig.providerAuthConfigs[provider.id]
+      const authConfig = providerAuthConfigs[provider.id]
       if (authConfig && provider.setAuth) {
         provider.setAuth(authConfig)
       }
@@ -80,17 +98,12 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
   })
 
   recorderManager.on('Updated', () => {
-    writeJSONFileSync<ManagerConfig>(
-      managerConfigPath,
-      pick(
-        recorderManager,
-        'savePathRule',
-        'autoRemoveSystemReservedChars',
-        'autoCheckLiveStatusAndRecord',
-        'autoCheckInterval',
-        'ffmpegOutputArgs',
-      ),
-    )
+    try {
+      // 只合并 recorderManager 上的录制配置，文件中的 providerAuthConfigs 等其他字段会被保留
+      updateManagerConfigFile(managerConfigPath, defaultManagerConfig, pickManagerOpts(recorderManager))
+    } catch (error) {
+      logger.error('Failed to save manager config:', error)
+    }
   })
 
   // TODO: 目前持久化的实现方式是不支持多实例同时运行的，考虑在程序运行期间把数据文件持续占用防止意外操作
@@ -176,21 +189,21 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
   recorderManager.on('RecorderUpdated', ({ recorder }) => updateRecorder(recorder.toJSON()))
 }
 
+/** recorderManager 上需要持久化的录制配置，鉴权配置单独由 saveProviderAuthConfig 保存 */
+const managerOptKeys = managerConfigKeys.filter(
+  (key): key is Exclude<keyof ManagerConfig, 'providerAuthConfigs'> => key !== 'providerAuthConfigs',
+)
+
+function pickManagerOpts(source: Partial<ManagerConfig>): Partial<ManagerConfig> {
+  return pick(source, ...managerOptKeys)
+}
+
 export function saveProviderAuthConfig(providerId: string, authConfig: Record<string, string> | null): void {
-  const config = readJSONFileSync<ManagerConfig>(managerConfigPath, defaultManagerConfig)
-  if (!config.providerAuthConfigs) config.providerAuthConfigs = {}
-
-  if (authConfig) {
-    config.providerAuthConfigs[providerId] = authConfig
-  } else {
-    delete config.providerAuthConfigs[providerId]
-  }
-
-  writeJSONFileSync(managerConfigPath, config)
+  updateProviderAuthConfig(managerConfigPath, defaultManagerConfig, providerId, authConfig)
 }
 
 export function getProviderAuthConfigs(): Record<string, Record<string, string>> {
-  const config = readJSONFileSync<ManagerConfig>(managerConfigPath, defaultManagerConfig)
+  const { config } = readManagerConfigFile(managerConfigPath, defaultManagerConfig)
   return config.providerAuthConfigs ?? {}
 }
 

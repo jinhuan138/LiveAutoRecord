@@ -300,10 +300,13 @@ RecorderManager 是整个系统的核心调度器，负责管理所有 Recorder 
 ```
 {config}/
   ├── manager.json        # Manager 配置
+  ├── manager.json.bak.N  # manager.json 的有效备份（1 为最新，最多 3 份）
   └── settings.json       # 应用设置
 
 {data}/
   ├── data.json           # lowdb 数据库（recorders + records 表）
+  ├── data.json.bak.N     # data.json 的有效备份（1 为最新，最多 3 份）
+  ├── data.json.corrupt-* # 读取失败时保留下来的损坏文件
   └── {platform}/         # 录制文件按平台/主播/时间组织
       └── {owner}/
           ├── 2025-01-01 20-00-00 直播标题.mp4    # 录制视频
@@ -328,6 +331,18 @@ interface ManagerConfig {
 ```
 
 `providerAuthConfigs` 存储各平台的鉴权凭据（如 B站 Cookie），应用启动时自动加载并注入到对应 Provider。
+
+所有写入都经过 `updateManagerConfigFile` / `updateProviderAuthConfig`（`packages/core/src/data-file.ts`）：先读取文件中的完整配置，只合并本次改动的字段后再原子写入，因此修改全局设置不会覆盖 `providerAuthConfigs`，保存登录信息也不会覆盖录制配置。
+
+### 4.2.1 备份与损坏恢复
+
+`manager.json` 与 `data.json` 都通过 `readJSONFileWithRecovery`（`packages/shared/src/backup.ts`）读取：
+
+1. 解析 JSON 并校验数据结构（`isManagerConfig` / `isDatabaseSchema`）。
+2. 失败时把主文件重命名为 `*.corrupt-<时间>` 保留，再按 `bak.1` → `bak.N` 的顺序找到第一份通过校验的备份，原子写回主文件。
+3. 没有可用备份时使用默认值 / 空库。
+
+启动时读取正常会立即做一次备份；运行期间写入后最多每 6 小时备份一次（`DATA_BACKUP_INTERVAL`），内容与最新备份相同时不轮转。发生恢复或重置时，http-server 通过 `GET /api/data_recovery_notices` 向 Web 端提供提示，Web 端弹窗告知用户，确认后调用 `DELETE` 清除；CLI 直接在终端输出警告。
 
 ### 4.3 data.json（lowdb 数据库）
 
@@ -630,6 +645,16 @@ Provider 只需声明 `authFlow`（loginURL + checkLoginResult 纯函数），�
 | `ensureFileFolderExists(filePath)`     | 确保文件所在目录存在                   |
 | `readJSONFileSync(path, defaultValue)` | 同步读取 JSON 文件，不存在则返回默认值 |
 | `writeJSONFileSync(path, json)`        | 同步写入 JSON 文件（自动创建目录）     |
+
+### 数据文件（`packages/core/src/data-file.ts`、`packages/shared/src/backup.ts`）
+
+| 函数                                                       | 说明                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
+| `readJSONFileWithRecovery(path, { validate, maxBackups })` | 读取并校验 JSON，损坏时保留损坏文件并从最近的有效备份恢复 |
+| `rotateBackups(path, { maxBackups, minIntervalMs })`       | 把当前主文件轮转保存为 `.bak.1`，内容未变或间隔不足时跳过 |
+| `readManagerConfigFile(path, defaults)`                    | 带恢复地读取 manager.json，返回配置与恢复结果             |
+| `updateManagerConfigFile(path, defaults, patch)`           | manager.json 的统一保存入口，合并后写入并按间隔备份       |
+| `updateProviderAuthConfig(path, defaults, id, config)`     | 设置或删除单个 Provider 的鉴权配置，其他字段保持不变      |
 
 ### bilibili-recorder 包中的通用模式
 

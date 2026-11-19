@@ -1,6 +1,18 @@
 import path from 'path'
-import { Low, JSONFile, paths, assert, ensureFileFolderExists } from '@autorecord/core'
+import {
+  Low,
+  JSONFile,
+  paths,
+  assert,
+  ensureFileFolderExists,
+  createEmptyDatabase,
+  isDatabaseSchema,
+  readJSONFileWithRecovery,
+  rotateBackups,
+  DATA_BACKUP_INTERVAL,
+} from '@autorecord/core'
 import type { DatabaseSchema, RecordModel, RecorderModel, QueryRecordsOpts } from '@autorecord/core'
+import { logger } from './output'
 
 export type { DatabaseSchema, RecordModel, RecorderModel, QueryRecordsOpts }
 
@@ -9,14 +21,19 @@ const adapter = new JSONFile<DatabaseSchema>(dbPath)
 const db = new Low(adapter)
 
 export async function initDB(): Promise<void> {
-  try {
-    await db.read()
-  } catch (error) {
-    throw new Error(`Failed to read database at ${dbPath}: ${error}`)
+  const recovery = readJSONFileWithRecovery<DatabaseSchema>(dbPath, { validate: isDatabaseSchema })
+  if (recovery.status === 'restored') {
+    logger.warn(
+      `Database at ${dbPath} is corrupted (${recovery.error}), restored from ${recovery.restoredFrom}. Corrupted file kept at ${recovery.corruptedPath}`,
+    )
+  } else if (recovery.status === 'reset') {
+    logger.warn(
+      `Database at ${dbPath} is corrupted (${recovery.error}) and no valid backup found, starting with empty data. Corrupted file kept at ${recovery.corruptedPath}`,
+    )
+  } else if (recovery.status === 'ok') {
+    backupDB(0)
   }
-  if (db.data == null) {
-    db.data = { records: [], recorders: [], nextRecorderId: 1 }
-  }
+  db.data = recovery.data ?? createEmptyDatabase()
 
   // 旧版本 schema 升级
   if (db.data.recorders == null) {
@@ -29,9 +46,18 @@ function assertDBReady<T>(db: Low<T>): asserts db is Low<T> & { data: T } {
   return assert(db.data, 'Must initialize the db before using it')
 }
 
+function backupDB(minIntervalMs: number): void {
+  try {
+    rotateBackups(dbPath, { minIntervalMs })
+  } catch (error) {
+    logger.warn(`Failed to backup database: ${error}`)
+  }
+}
+
 export async function saveDB(): Promise<void> {
   ensureFileFolderExists(dbPath)
   await db.write()
+  backupDB(DATA_BACKUP_INTERVAL)
 }
 
 export function getRecorders(): RecorderModel[] {

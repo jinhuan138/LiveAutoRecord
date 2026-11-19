@@ -166,6 +166,18 @@ async function clearProviderAuth(args: API.clearProviderAuth.Args): Promise<API.
   return resp.data.payload
 }
 
+async function getDataRecoveryNotices(args: API.getDataRecoveryNotices.Args): Promise<API.getDataRecoveryNotices.Resp> {
+  const resp = await requester.get<{ payload: API.getDataRecoveryNotices.Resp }>('/data_recovery_notices')
+  return resp.data.payload
+}
+
+async function clearDataRecoveryNotices(
+  args: API.clearDataRecoveryNotices.Args,
+): Promise<API.clearDataRecoveryNotices.Resp> {
+  const resp = await requester.delete<{ payload: API.clearDataRecoveryNotices.Resp }>('/data_recovery_notices')
+  return resp.data.payload
+}
+
 const logMethods = ['error', 'warn', 'info', 'debug'] as const
 const logFunctions = createTypedObjectFromEntries(
   logMethods.map((method) => {
@@ -210,6 +222,8 @@ export const LARServerService = {
   setProviderAuth,
   performProviderLogin,
   clearProviderAuth,
+  getDataRecoveryNotices,
+  clearDataRecoveryNotices,
 
   getServerMessages,
 

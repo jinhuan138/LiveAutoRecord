@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { managerConfigPath, defaultManagerConfig, managerConfigKeys, type ManagerConfig } from '../core/manager-init'
-import { readJSONFileSync, writeJSONFileSync } from '@autorecord/core'
+import { readManagerConfigFile, updateManagerConfigFile } from '@autorecord/core'
 import { isJsonMode, logger, outputJson, outputSuccess, outputError, outputTable } from '../core/output'
 
 export function createConfigCommand(): Command {
@@ -22,10 +22,11 @@ Examples:
 Available keys: ${managerConfigKeys.join(', ')}`,
     )
     .action(async (key?: string, value?: string, opts?: { reset?: boolean }) => {
-      const config = readJSONFileSync<ManagerConfig>(managerConfigPath, defaultManagerConfig)
+      const { config } = readManagerConfigFile(managerConfigPath, defaultManagerConfig)
 
       if (opts?.reset) {
-        writeJSONFileSync(managerConfigPath, defaultManagerConfig)
+        // 重置只恢复录制配置，保留已保存的平台登录配置
+        updateManagerConfigFile(managerConfigPath, defaultManagerConfig, defaultManagerConfig)
         outputSuccess(defaultManagerConfig, 'Configuration reset to defaults')
         return
       }
@@ -90,7 +91,7 @@ Available keys: ${managerConfigKeys.join(', ')}`,
       }
 
       ;(config as any)[configKey] = parsedValue
-      writeJSONFileSync(managerConfigPath, config)
+      updateManagerConfigFile(managerConfigPath, defaultManagerConfig, { [configKey]: parsedValue })
 
       outputSuccess({ key: configKey, value: parsedValue }, `Config updated: ${configKey} = ${parsedValue}`)
     })
