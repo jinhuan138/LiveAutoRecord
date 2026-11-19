@@ -3,12 +3,15 @@
  * https://electronjs.org/docs/latest/tutorial/tutorial-preload
  */
 import { ClientAPI } from '@autorecord/shared'
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import packageJSON from '../package.json'
 
 const clientAPI: ClientAPI = {
   getVersion() {
     return packageJSON.version
+  },
+  selectDirectory(opts) {
+    return ipcRenderer.invoke('select-directory', opts)
   },
 }
 

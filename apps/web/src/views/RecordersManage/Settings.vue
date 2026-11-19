@@ -18,6 +18,8 @@
           v-model="manager.savePathRule"
           append-inner-icon="mdi-help-circle"
           @click:append-inner="savePathRuleAlertVisible = !savePathRuleAlertVisible"
+          :append-icon="isClient ? 'mdi-folder-open' : undefined"
+          @click:append="selectSaveDirectory"
           hide-details
         />
         <v-alert v-model="savePathRuleAlertVisible" closable>
@@ -454,6 +456,29 @@ onMounted(async () => {
     }
   }
 })
+
+/** 拆分保存路径规则：目录前缀为第一个含变量的路径段之前的部分，没有变量时则只保留文件名 */
+const splitSavePathRule = (rule: string) => {
+  const varIndex = rule.indexOf('{')
+  const end = varIndex === -1 ? rule.length : varIndex
+  const sepIndex = Math.max(rule.lastIndexOf('/', end), rule.lastIndexOf('\\', end))
+  return { dir: rule.slice(0, Math.max(sepIndex, 0)), template: rule.slice(sepIndex + 1) }
+}
+
+const selectSaveDirectory = async () => {
+  const clientAPI = ClientService.getClientAPI()
+  if (!clientAPI || !manager.value) return
+
+  const { dir, template } = splitSavePathRule(manager.value.savePathRule ?? '')
+  const selected = await clientAPI.selectDirectory({
+    title: t('settings.select_save_dir'),
+    defaultPath: dir || undefined,
+  })
+  if (!selected) return
+
+  const sep = selected.includes('\\') ? '\\' : '/'
+  manager.value.savePathRule = selected.replace(/[\\/]+$/, '') + sep + template
+}
 
 const saveProviderAuth = async (providerId: string) => {
   authOperating[providerId] = true

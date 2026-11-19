@@ -1,7 +1,7 @@
 import { logger } from './logger'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'node:url'
-import { app, screen, shell, BrowserWindow, Menu, Tray } from 'electron'
+import { app, dialog, ipcMain, screen, shell, BrowserWindow, Menu, Tray } from 'electron'
 import type { ProviderAuthFlow } from '@autorecord/manager'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -59,6 +59,8 @@ function initApp() {
     executeAuthFlow: createElectronAuthFlowExecutor(),
   })
 
+  initIPC()
+
   app.on('browser-window-created', (e, window) => {
     // 隐藏 windows 系统下的窗口菜单栏
     window.removeMenu()
@@ -72,6 +74,19 @@ function initApp() {
 
   createTray()
   createWindow()
+}
+
+function initIPC() {
+  ipcMain.handle('select-directory', async (event, opts?: { title?: string; defaultPath?: string }) => {
+    const dialogOpts: Electron.OpenDialogOptions = {
+      title: opts?.title,
+      defaultPath: opts?.defaultPath,
+      properties: ['openDirectory', 'createDirectory'],
+    }
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const result = window ? await dialog.showOpenDialog(window, dialogOpts) : await dialog.showOpenDialog(dialogOpts)
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
 }
 
 function createWindow() {

@@ -72,6 +72,7 @@ export default {
   settings: {
     global_recording_settings: 'Глобальные настройки записи',
     save_path_rule: 'Правило сохранения пути',
+    select_save_dir: 'Выберите папку для сохранения записей',
     auto_remove_reserved_chars: 'Автоматически удалить системные зарезервированные символы',
     spr_alert_title: 'Как использовать переменные в пути сохранения?',
     spr_alert_subtitle: "Оберните имя переменной в `{'{}'}`, чтобы использовать его, например `/path/{'{platform}'}`",

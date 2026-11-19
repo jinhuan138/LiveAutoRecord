@@ -39,6 +39,8 @@ export interface DanmakuStyle {
 /** electron render 给 web 暴露的 API */
 export interface ClientAPI {
   getVersion(): string
+  /** 打开系统的选择文件夹对话框，用户取消时返回 null */
+  selectDirectory(opts?: { title?: string; defaultPath?: string }): Promise<string | null>
 }
 
 export * from './steno'
