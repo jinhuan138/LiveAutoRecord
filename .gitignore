@@ -28,5 +28,9 @@ dist-ssr
 # Turbo
 .turbo
 
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist
+
 # Claude
 .claude/settings.local.json

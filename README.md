@@ -11,6 +11,10 @@
   <h3 align="center">Live Auto Record</h3>
   <p align="center">支持多个直播平台的自动录制工具 / NPM 包</p>
   <div align="center">
+    <a href="https://jinhuan138.github.io/LiveAutoRecord/"
+      >使用文档</a
+    >
+    ·
     <a href="https://github.com/jinhuan138/LiveAutoRecord/issues"
       >Bug 反馈</a
     >
