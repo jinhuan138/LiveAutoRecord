@@ -371,16 +371,6 @@
               </a>
             </td>
           </tr>
-          <tr>
-            <td>{{ t('settings.author') }}</td>
-            <td>
-              <a href="https://space.bilibili.com/23505769" target="_blank">WhiteMind</a>
-            </td>
-          </tr>
-          <tr>
-            <td>{{ t('settings.email') }}</td>
-            <td>whitemind@qq.com</td>
-          </tr>
         </tbody>
       </v-table>
     </v-card-item>

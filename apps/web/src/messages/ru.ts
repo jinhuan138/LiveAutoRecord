@@ -131,8 +131,6 @@ export default {
     version: 'Версия',
     open_source: 'Открытый исходный код',
     feedback: 'Обратная связь',
-    author: 'Автор',
-    email: 'Электронная почта',
   },
 
   records: {

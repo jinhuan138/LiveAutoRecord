@@ -126,8 +126,6 @@ export default {
     version: '版本',
     open_source: '开源地址',
     feedback: 'BUG / 意见反馈',
-    author: '作者',
-    email: '邮箱',
   },
 
   records: {

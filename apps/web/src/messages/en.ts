@@ -130,8 +130,6 @@ export default {
     version: 'Version',
     open_source: 'Open source',
     feedback: 'Feedback',
-    author: 'Author',
-    email: 'Email',
   },
 
   records: {
