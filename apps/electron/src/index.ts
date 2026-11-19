@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 import { startServer } from '@autorecord/http-server'
 import ffmpegPathFromModule from 'ffmpeg-static'
 import { getSettings, setSettings } from './settings'
+import { checkForUpdates, initAutoCheckForUpdates, installDownloadedUpdateOnStartup } from './updater'
 import trayPNG from './assets/tray.png'
 import trayICO from './assets/tray.ico'
 import iconPNG from './assets/icon.png'
@@ -42,9 +43,12 @@ function initSingleInstanceLock() {
   app.on('second-instance', showMainWindow)
 }
 
-function initApp() {
+async function initApp() {
   // windows 下的通知会展示 AppUserModelID
   app.setAppUserModelId(packageJSON.build.productName)
+
+  // 必须在录制服务启动前询问，这时还没有开始录制，安装不会打断录像
+  if (await installDownloadedUpdateOnStartup()) return
 
   startServer({
     getSettings: async () => getSettings(),
@@ -74,6 +78,7 @@ function initApp() {
 
   createTray()
   createWindow()
+  initAutoCheckForUpdates()
 }
 
 function initIPC() {
@@ -87,6 +92,8 @@ function initIPC() {
     const result = window ? await dialog.showOpenDialog(window, dialogOpts) : await dialog.showOpenDialog(dialogOpts)
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
+
+  ipcMain.handle('check-for-updates', () => checkForUpdates(true))
 }
 
 function createWindow() {
@@ -151,6 +158,7 @@ function createTray() {
   if (process.platform === 'win32') {
     const contextMenu = Menu.buildFromTemplate([
       { label: '显示', type: 'normal', click: showMainWindow },
+      { label: '检查更新', type: 'normal', click: () => void checkForUpdates(true) },
       { label: '退出', type: 'normal', click: () => app.quit() },
     ])
     tray.setContextMenu(contextMenu)

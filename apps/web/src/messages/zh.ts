@@ -125,6 +125,7 @@ export default {
     auth_login_failed: '登录失败: {msg}',
     about: '关于本软件',
     version: '版本',
+    check_update: '检查更新',
     open_source: '开源地址',
     feedback: 'BUG / 意见反馈',
   },

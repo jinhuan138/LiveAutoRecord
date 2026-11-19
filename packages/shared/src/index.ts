@@ -41,6 +41,8 @@ export interface ClientAPI {
   getVersion(): string
   /** 打开系统的选择文件夹对话框，用户取消时返回 null */
   selectDirectory(opts?: { title?: string; defaultPath?: string }): Promise<string | null>
+  /** 手动检查新版本，结果由客户端通过系统对话框提示 */
+  checkForUpdates(): Promise<void>
 }
 
 export * from './steno'

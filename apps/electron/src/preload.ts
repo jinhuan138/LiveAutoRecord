@@ -13,6 +13,9 @@ const clientAPI: ClientAPI = {
   selectDirectory(opts) {
     return ipcRenderer.invoke('select-directory', opts)
   },
+  checkForUpdates() {
+    return ipcRenderer.invoke('check-for-updates')
+  },
 }
 
 contextBridge.exposeInMainWorld('clientAPI', clientAPI)

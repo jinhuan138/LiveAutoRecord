@@ -130,6 +130,7 @@ export default {
     auth_login_failed: 'Ошибка входа: {msg}',
     about: 'О программе',
     version: 'Версия',
+    check_update: 'Проверить обновления',
     open_source: 'Открытый исходный код',
     feedback: 'Обратная связь',
   },

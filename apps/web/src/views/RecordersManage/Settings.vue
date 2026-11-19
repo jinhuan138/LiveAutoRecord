@@ -355,7 +355,19 @@
         <tbody>
           <tr>
             <td>{{ t('settings.version') }}</td>
-            <td>v{{ version }}</td>
+            <td>
+              v{{ version }}
+              <v-btn
+                v-if="isClient"
+                class="ml-4"
+                size="small"
+                variant="tonal"
+                :loading="checkingUpdate"
+                @click="checkForUpdates"
+              >
+                {{ t('settings.check_update') }}
+              </v-btn>
+            </td>
           </tr>
           <tr>
             <td>{{ t('settings.open_source') }}</td>
@@ -412,6 +424,7 @@ const danmakuBurnEncoders: NonNullable<API.getSettings.Resp['danmakuBurnEncoder'
 ]
 const savePathRuleAlertVisible = ref(false)
 const noticeFormatAlertVisible = ref(false)
+const checkingUpdate = ref(false)
 
 // Provider 鉴权相关状态
 const providers = ref<API.getProviders.Resp>()
@@ -478,6 +491,18 @@ const selectSaveDirectory = async () => {
 
   const sep = selected.includes('\\') ? '\\' : '/'
   manager.value.savePathRule = selected.replace(/[\\/]+$/, '') + sep + template
+}
+
+const checkForUpdates = async () => {
+  const clientAPI = ClientService.getClientAPI()
+  if (!clientAPI) return
+
+  checkingUpdate.value = true
+  try {
+    await clientAPI.checkForUpdates()
+  } finally {
+    checkingUpdate.value = false
+  }
 }
 
 const saveProviderAuth = async (providerId: string) => {

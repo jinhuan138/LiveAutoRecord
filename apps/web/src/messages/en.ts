@@ -129,6 +129,7 @@ export default {
     auth_login_failed: 'Login failed: {msg}',
     about: 'About',
     version: 'Version',
+    check_update: 'Check for updates',
     open_source: 'Open source',
     feedback: 'Feedback',
   },

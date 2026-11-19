@@ -111,15 +111,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Test Package Dmg
-          path: apps/electron/build/**/*.dmg
+          path: apps/electron/build/*/*.dmg
           if-no-files-found: error
 
+      # 只传版本目录下的安装包，不带 win-unpacked 里的 exe；latest.yml 和 blockmap 供客户端自动更新使用
       - name: Upload Exe
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: Test Package Exe
-          path: apps/electron/build/**/*.exe
+          path: |
+            apps/electron/build/*/*.exe
+            apps/electron/build/*/*.exe.blockmap
+            apps/electron/build/*/latest.yml
           if-no-files-found: error
 
   release:
@@ -146,7 +150,7 @@ jobs:
           pattern: Test Package *
           path: release-assets
           merge-multiple: true
-      - name: 创建版本并上传 exe 和 dmg
+      - name: 创建版本并上传安装包和更新文件
         shell: bash
         run: |
           set -euo pipefail
@@ -157,12 +161,18 @@ jobs:
           fi
           TAG="v${VERSION}"
           shopt -s nullglob globstar
-          WINDOWS=(release-assets/**/*.exe)
+          WINDOWS=(release-assets/**/*.exe release-assets/**/*.exe.blockmap)
           MAC=(release-assets/**/*.dmg)
+          UPDATE_INFO=(release-assets/**/latest.yml)
           if (( ${#WINDOWS[@]} == 0 || ${#MAC[@]} == 0 )); then
             echo "::error::缺少 Windows 或 macOS 安装包，停止发布"
             exit 1
           fi
+          if (( ${#UPDATE_INFO[@]} != 1 )); then
+            echo "::error::缺少 latest.yml，Windows 客户端无法自动更新，停止发布"
+            exit 1
+          fi
+          ASSETS=("${WINDOWS[@]}" "${MAC[@]}" "${UPDATE_INFO[@]}")
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             # 同一次提交允许重跑；新提交必须先升版本，避免覆盖已发布版本。
@@ -171,8 +181,8 @@ jobs:
               echo "::error::${TAG} 已对应其他提交，请先修改 apps/electron/package.json 的版本号"
               exit 1
             fi
-            gh release upload "$TAG" "${WINDOWS[@]}" "${MAC[@]}" --clobber
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
           else
-            gh release create "$TAG" "${WINDOWS[@]}" "${MAC[@]}" \
+            gh release create "$TAG" "${ASSETS[@]}" \
               --target "$RELEASE_SHA" --title "$TAG" --generate-notes
           fi
