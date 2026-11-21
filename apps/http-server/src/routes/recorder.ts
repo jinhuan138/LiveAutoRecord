@@ -110,7 +110,13 @@ router
       'extra',
     )
 
-    res.json({ payload: addRecorder(args) })
+    const channelId = typeof args.channelId === 'string' ? args.channelId.trim() : ''
+    if (!/^[^\s/:?#]+$/.test(channelId)) {
+      res.status(400).json({ message: 'A resolved channel ID is required' })
+      return
+    }
+
+    res.json({ payload: addRecorder({ ...args, channelId }) })
   })
 
 router

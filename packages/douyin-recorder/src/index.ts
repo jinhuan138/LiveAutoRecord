@@ -1,4 +1,3 @@
-import path from 'path'
 import mitt from 'mitt'
 import {
   Recorder,
@@ -14,6 +13,7 @@ import {
   redactFFmpegArgs,
 } from '@autorecord/manager'
 import { getInfo, getStream } from './stream'
+import { findRoomURL, resolveRoomId } from './share'
 import { getAuthCookie, getRequestCookie, setAuthCookie } from './douyin_api'
 import { assertStringType, ensureFolderExist, replaceExtName, singleton } from './utils'
 import { createDouyinDanmakuClient, DouyinDanmakuClient } from './danmaku/client'
@@ -291,14 +291,14 @@ export const provider: RecorderProvider<{}> = {
   minCheckIntervalMs: 1000,
 
   matchURL(channelURL) {
-    // TODO: 暂时不支持 v.douyin.com
-    return /https?:\/\/live\.douyin\.com\//.test(channelURL)
+    return findRoomURL(channelURL) != null
   },
 
   async resolveChannelInfoFromURL(channelURL) {
-    if (!this.matchURL(channelURL)) return null
-
-    const id = path.basename(new URL(channelURL).pathname)
+    const url = findRoomURL(channelURL)
+    if (!url) return null
+    const id = await resolveRoomId(url)
+    if (!id) return null
     const info = await getInfo(id)
 
     return {

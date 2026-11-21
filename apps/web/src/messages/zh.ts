@@ -56,7 +56,7 @@ export default {
   edit: {
     create_title: '正在添加新录制任务',
     edit_title: '正在编辑录制任务',
-    channel_input_hint: '输入频道的 ID 或完整 URL，检测到 URL 时会自动解析为频道 ID',
+    channel_input_hint: '输入频道 ID、直播链接或抖音分享文案，链接会自动解析为频道 ID',
     quality_input_hint: '根据设定的画质，自动选择合适的视频流',
     stream_priority_input_hint: '录制时将按前后顺序尝试选择指定流，成功时将忽略画质设置',
     source_priority_input_hint: '录制时将按前后顺序尝试选择指定源',

@@ -1,6 +1,6 @@
 <template>
   <div class="h-full p-4">
-    <div ref="container" class="max-h-full max-w-full"></div>
+    <div ref="container" class="record-player max-h-full max-w-full"></div>
   </div>
 </template>
 
@@ -101,3 +101,10 @@ function keyHandler(event: KeyboardEvent) {
   }
 }
 </script>
+
+<style scoped>
+.record-player :deep(.dplayer-danmaku) {
+  height: 25%;
+  overflow: hidden;
+}
+</style>

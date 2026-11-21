@@ -24,12 +24,12 @@
         <v-text-field
           :label="$t('recorder.channel')"
           class="mb-4"
-          v-model="recorder.channelId"
-          @input="onChannelIdInputting"
-          @keydown.enter="onChannelIdInputEnd"
+          :model-value="recorder.channelId"
+          @update:model-value="onChannelIdInputting"
+          @keydown.enter.prevent="onChannelIdInputEnd"
           @blur="onChannelIdInputEnd"
           required
-          :disabled="!isCreating"
+          :disabled="!isCreating || operating"
           :loading="parsing"
           persistent-hint
           :hint="parseState ?? $t('edit.channel_input_hint')"
@@ -76,7 +76,7 @@
     </v-card-item>
 
     <v-card-actions class="border-t justify-end">
-      <v-btn @click="applyOrAddRecorder" :loading="operating || parsing">
+      <v-btn @click="applyOrAddRecorder" :loading="operating || parsing" :disabled="operating">
         {{ parsing ? $t('edit.waiting_for_parsing') : isCreating ? $t('common.add') : $t('common.apply') }}
       </v-btn>
       <v-btn v-if="!isCreating" @click="removeRecorder" :loading="operating">{{ $t('common.delete') }}</v-btn>
@@ -134,36 +134,47 @@ onMounted(async () => {
 
 const parsing = ref(false)
 const parseState = ref<string>()
-const parseChannelURL = async (raw: string) => {
-  raw = raw.trim()
-  const isURL = raw.startsWith('http://') || raw.startsWith('https://')
-  if (!isURL) {
-    parsing.value = false
-    parseState.value = undefined
-    return
-  }
+let inputRevision = 0
+let pendingParse: { revision: number; result: Promise<boolean> } | undefined
+const parseChannelURL = (): Promise<boolean> => {
+  const url = recorder.channelId.match(/https?:\/\/[^\s<>"()\[\]，。！？；、）】》]+/i)?.[0]
+  if (!url) return Promise.resolve(false)
 
-  parseState.value = `${t('edit.parse_state_parsing')} ${raw}`
+  const revision = inputRevision
+  if (pendingParse?.revision === revision) return pendingParse.result
+
+  parseState.value = `${t('edit.parse_state_parsing')} ${url}`
   parsing.value = true
-  // TODO: 切入新的 parse 时，要抛弃掉旧的请求
-  const res = await LARServerService.resolveChannel({ channelURL: raw })
-  parsing.value = false
-  if (!res) {
-    parseState.value = `${t('edit.parse_state_error')}: ${raw}`
-    return
-  }
-  parseState.value = `${t('edit.parse_state_parsed')}: ${res.providerId} / ${res.channelId} / ${res.owner}`
+  const result = LARServerService.resolveChannel({ channelURL: url })
+    .catch(() => null)
+    .then((res) => {
+      if (revision !== inputRevision) return false
+      if (!res) {
+        parseState.value = `${t('edit.parse_state_error')}: ${url}`
+        return false
+      }
 
-  recorder.providerId = res.providerId
-  recorder.channelId = res.channelId
-  if (recorder.remarks == null || !recorder.remarks.trim()) {
-    recorder.remarks = res.owner
-  }
+      recorder.providerId = res.providerId
+      recorder.channelId = res.channelId
+      if (!recorder.remarks?.trim()) recorder.remarks = res.owner
+      parseState.value = `${t('edit.parse_state_parsed')}: ${res.providerId} / ${res.channelId} / ${res.owner}`
+      return true
+    })
+    .finally(() => {
+      if (revision === inputRevision) parsing.value = false
+      if (pendingParse?.revision === revision) pendingParse = undefined
+    })
+  pendingParse = { revision, result }
+  return result
 }
 const debouncedParseChannelURL = debounce(parseChannelURL, 500)
 
-const onChannelIdInputting = () => {
-  debouncedParseChannelURL(recorder.channelId)
+const onChannelIdInputting = (value: string) => {
+  recorder.channelId = value
+  inputRevision++
+  parsing.value = false
+  parseState.value = undefined
+  debouncedParseChannelURL()
 }
 const onChannelIdInputEnd = () => {
   debouncedParseChannelURL.flush()
@@ -172,18 +183,23 @@ const onChannelIdInputEnd = () => {
 const operating = ref(false)
 
 const applyOrAddRecorder = async () => {
+  if (operating.value) return
   operating.value = true
-  if (isCreating) {
-    await RecorderService.addRecorder(recorder)
-  } else {
-    await RecorderService.updateRecorder({
-      ...recorder,
-      id: recorderId,
-    })
+  try {
+    if (isCreating) {
+      debouncedParseChannelURL.cancel()
+      if (!/^[^\s/:?#]+$/.test(recorder.channelId.trim()) && !(await parseChannelURL())) {
+        parseState.value ??= t('edit.parse_state_error')
+        return
+      }
+      await RecorderService.addRecorder({ ...recorder, channelId: recorder.channelId.trim() })
+    } else {
+      await RecorderService.updateRecorder({ ...recorder, id: recorderId })
+    }
+    router.back()
+  } finally {
+    operating.value = false
   }
-  operating.value = false
-
-  router.back()
 }
 
 const removeRecorder = async () => {
