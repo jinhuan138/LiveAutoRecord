@@ -13,6 +13,7 @@ export interface Settings {
   /** 旧版全局值，仅用于迁移到各录制任务。 */
   autoGenerateSRTOnRecordStop?: boolean
   autoBurnDanmakuOnRecordStop?: boolean
+  srtShowSender?: boolean
   danmakuBurnEncoder?: DanmakuBurnEncoder
   danmakuStyle?: DanmakuStyle
 }

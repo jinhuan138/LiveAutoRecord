@@ -97,6 +97,7 @@ export default {
     default_notice_format: "频道 {'{channelId}'} 开始录制",
     close_to_tray: '关闭时进入托盘',
     auto_remove_empty_record: '自动移除 0kb 的录制记录',
+    srt_show_sender: 'SRT 字幕显示发言人',
     notify_when_record_start: '录制开始时发出通知',
     notice_format: '通知内容格式',
     nf_alert_title: '如何在通知内容格式中使用变量？',

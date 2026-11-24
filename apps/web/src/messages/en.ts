@@ -100,6 +100,7 @@ export default {
     default_notice_format: "Channel {'{channelId}'} started recording",
     close_to_tray: 'Close to tray',
     auto_remove_empty_record: 'Auto remove 0kb recording records',
+    srt_show_sender: 'Show sender names in SRT subtitles',
     notify_when_record_start: 'Notify when recording starts',
     notice_format: 'Notice content format',
     nf_alert_title: 'How to use variables in the notice content format?',

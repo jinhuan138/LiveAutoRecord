@@ -1,6 +1,6 @@
 import { ErrorRequestHandler, Router } from 'express'
 import { router as recorderRoutes } from './recorder'
-import { router as recordRoutes } from './record'
+import { createRouter as createRecordRouter } from './record'
 import { router as managerRoutes } from './manager'
 import { router as eventRoutes } from './event'
 import { router as dataRecoveryRoutes } from './data_recovery'
@@ -15,7 +15,7 @@ export function createRouter(serverOpts: ServerOpts) {
   const router = Router()
 
   router.use(recorderRoutes)
-  router.use(recordRoutes)
+  router.use(createRecordRouter(serverOpts))
   router.use(managerRoutes)
   router.use(eventRoutes)
   router.use(dataRecoveryRoutes)

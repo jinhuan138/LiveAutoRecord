@@ -141,6 +141,8 @@
           hide-details
         />
 
+        <v-checkbox :label="t('settings.srt_show_sender')" v-model="settings.srtShowSender" hide-details />
+
         <v-checkbox
           :label="t('settings.notify_when_record_start')"
           v-model="settings.noticeOnRecordStart"

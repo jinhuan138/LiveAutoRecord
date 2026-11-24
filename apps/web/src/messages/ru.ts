@@ -101,6 +101,7 @@ export default {
     default_notice_format: "Канал {'{channelId}'} начал запись",
     close_to_tray: 'Закрыть в трей',
     auto_remove_empty_record: 'Автоматически удалять записи с нулевым размером',
+    srt_show_sender: 'Показывать имена авторов комментариев в субтитрах SRT',
     notify_when_record_start: 'Уведомлять о начале записи',
     notice_format: 'Формат уведомления',
     nf_alert_title: 'Как использовать переменные в формате уведомления?',

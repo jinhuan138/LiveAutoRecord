@@ -136,7 +136,7 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
       if (recordHandle.id !== recordId) return
       recorderManager.off('RecordStop', updateRecordOnceRecordStop)
 
-      const { autoRemoveRecordWhenTinySize } = await serverOpts.getSettings()
+      const { autoRemoveRecordWhenTinySize, srtShowSender } = await serverOpts.getSettings()
       if (
         autoRemoveRecordWhenTinySize &&
         (!fs.existsSync(recordHandle.savePath) || fs.statSync(recordHandle.savePath).size === 0)
@@ -165,7 +165,7 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
       }
 
       if (autoGenerateSRTOnRecordStop) {
-        await genSRTFile(extraDataPath, replaceExtName(recordHandle.savePath, '.srt'))
+        await genSRTFile(extraDataPath, replaceExtName(recordHandle.savePath, '.srt'), srtShowSender)
       }
     }
 
@@ -228,7 +228,7 @@ export function getProviderAuthConfigs(): Record<string, Record<string, string>>
 
 // ass 看起来只有序列化和反序列化的库（如 ass-compiler），没有支持帮助排列弹幕的库，
 // 要自己实现，成本较高。所以先只简单实现个 srt 的，后面有需要的话再加个 ass 的版本。
-export async function genSRTFile(extraDataPath: string, srtPath: string): Promise<void> {
+export async function genSRTFile(extraDataPath: string, srtPath: string, showSender = false): Promise<void> {
   // TODO: 这里要不要考虑用 RecordExtraDataController 去操作？
   const buffer = await fs.promises.readFile(extraDataPath)
   const recordExtraData = JSON.parse(buffer.toString()) as RecordExtraData
@@ -246,7 +246,7 @@ export async function genSRTFile(extraDataPath: string, srtPath: string): Promis
           data: {
             start: start,
             end: start + life,
-            text: msg.text,
+            text: showSender && msg.sender?.name ? `${msg.sender.name}：${msg.text}` : msg.text,
           },
         })
         break

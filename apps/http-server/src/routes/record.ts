@@ -6,6 +6,7 @@ import { asyncRouteHandler, createPagedResultGetter, getNumberFromQuery } from '
 import * as db from '../db'
 import { assertStringType, replaceExtName } from '../utils'
 import { genSRTFile, recorderManager } from '../manager'
+import { ServerOpts } from '../types'
 import {
   cancelDanmakuBurn,
   enqueueDanmakuBurn,
@@ -117,32 +118,6 @@ router.route('/records/:id/extra_data').get(
   }),
 )
 
-router.route('/records/:id/srt').post(
-  asyncRouteHandler(async (req, res) => {
-    const { id } = req.params
-    const record = db.getRecord(id)
-    if (record == null) {
-      res.json({ payload: null }).status(404)
-      return
-    }
-
-    const extraDataPath = replaceExtName(record.savePath, '.json')
-    if (!fs.existsSync(extraDataPath)) {
-      res.json({ payload: null }).status(404)
-      return
-    }
-
-    // 感觉不用做什么优化，这里直接覆盖旧文件
-    const srtPath = replaceExtName(record.savePath, '.srt')
-    await genSRTFile(extraDataPath, srtPath)
-
-    res.json({
-      // 考虑到服务端安全，这里就先只返回 filename
-      payload: path.basename(srtPath),
-    })
-  }),
-)
-
 router.route('/records/:id/ass').post(
   asyncRouteHandler(async (req, res) => {
     const { id } = req.params
@@ -189,4 +164,36 @@ router
     res.json({ payload })
   })
 
-export { router }
+export function createRouter(serverOpts: Pick<ServerOpts, 'getSettings'>) {
+  const recordRouter = Router()
+  recordRouter.use(router)
+
+  recordRouter.route('/records/:id/srt').post(
+    asyncRouteHandler(async (req, res) => {
+      const { id } = req.params
+      const record = db.getRecord(id)
+      if (record == null) {
+        res.json({ payload: null }).status(404)
+        return
+      }
+
+      const extraDataPath = replaceExtName(record.savePath, '.json')
+      if (!fs.existsSync(extraDataPath)) {
+        res.json({ payload: null }).status(404)
+        return
+      }
+
+      // 感觉不用做什么优化，这里直接覆盖旧文件
+      const srtPath = replaceExtName(record.savePath, '.srt')
+      const { srtShowSender } = await serverOpts.getSettings()
+      await genSRTFile(extraDataPath, srtPath, srtShowSender)
+
+      res.json({
+        // 考虑到服务端安全，这里就先只返回 filename
+        payload: path.basename(srtPath),
+      })
+    }),
+  )
+
+  return recordRouter
+}
