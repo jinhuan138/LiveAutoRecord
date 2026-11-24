@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { Router } from 'express'
+import { readRecordExtraData, recordExtraDataExists } from '@autorecord/manager'
 import { API } from './api_types'
 import { asyncRouteHandler, createPagedResultGetter, getNumberFromQuery } from './utils'
 import * as db from '../db'
@@ -17,22 +18,34 @@ import {
 
 const router = Router()
 
-async function getRecords(args: API.getRecords.Args): Promise<API.getRecords.Resp> {
+async function checkRecordFiles(items: db.RecordModel[]) {
+  const checked: (db.RecordModel & { isFileExists: boolean })[] = []
+  const batchSize = 32
+  for (let start = 0; start < items.length; start += batchSize) {
+    const batch = await Promise.all(
+      items.slice(start, start + batchSize).map(async (item) => ({
+        ...item,
+        isFileExists: await fs.promises.access(item.savePath).then(
+          () => true,
+          () => false,
+        ),
+      })),
+    )
+    checked.push(...batch)
+  }
+  return checked
+}
+
+async function getRecords({ page, pageSize, ...query }: API.getRecords.Args): Promise<API.getRecords.Resp> {
   const pagedGetter = createPagedResultGetter(async (startIdx, count) => {
     const { items, total } = db.getRecords({
-      recorderId: args.recorderId,
+      ...query,
       start: startIdx,
       count,
     })
-    return {
-      items: items.map((item) => ({
-        ...item,
-        isFileExists: fs.existsSync(item.savePath),
-      })),
-      total,
-    }
+    return { items: await checkRecordFiles(items), total }
   })
-  return pagedGetter(args.page, args.pageSize)
+  return pagedGetter(page, pageSize)
 }
 
 function getRecord(args: API.getRecord.Args): API.getRecord.Resp {
@@ -44,7 +57,7 @@ function getRecord(args: API.getRecord.Args): API.getRecord.Resp {
 
 router.route('/records').get(
   asyncRouteHandler(async (req, res) => {
-    const { recorderId } = req.query
+    const { recorderId, search, timeZone, locale, sortBy, sortOrder } = req.query
     if (recorderId != null) {
       assertStringType(recorderId)
     }
@@ -55,7 +68,25 @@ router.route('/records').get(
       max: 9999,
     })
 
-    res.json({ payload: await getRecords({ recorderId, page, pageSize }) })
+    if (
+      (sortBy != null && !db.isRecordSortKey(sortBy)) ||
+      (sortOrder != null && sortOrder !== 'asc' && sortOrder !== 'desc')
+    ) {
+      res.status(400).json({ payload: null, error: 'Invalid record sort' })
+      return
+    }
+
+    const payload = await getRecords({
+      recorderId,
+      page: Number.isSafeInteger(page) ? page : 1,
+      pageSize: Math.trunc(pageSize),
+      search: typeof search === 'string' ? search : undefined,
+      timeZone: typeof timeZone === 'string' ? timeZone : undefined,
+      locale: typeof locale === 'string' ? locale : undefined,
+      sortBy,
+      sortOrder,
+    })
+    res.json({ payload })
   }),
 )
 
@@ -66,8 +97,9 @@ router.route('/records/clear_invalid').post(
       assertStringType(recorderId)
     }
 
-    const records = await getRecords({ recorderId, page: 1, pageSize: 1e10 })
-    const invalidIds = records.items.filter((item) => !item.isFileExists).map((item) => item.id)
+    const { items } = db.getRecords({ recorderId })
+    const checked = await checkRecordFiles(items.slice())
+    const invalidIds = checked.filter((item) => !item.isFileExists).map((item) => item.id)
     db.removeRecords(invalidIds)
 
     res.json({ payload: invalidIds.length })
@@ -97,24 +129,19 @@ router.route('/records/:id/video').get((req, res) => {
 
 router.route('/records/:id/extra_data').get(
   asyncRouteHandler(async (req, res) => {
-    const { id } = req.params
-    const record = db.getRecord(id)
+    const record = db.getRecord(req.params.id)
     if (record == null) {
-      res.json({ payload: null }).status(404)
+      res.status(404).json({ payload: null })
       return
     }
 
-    const extraDataPath = replaceExtName(record.savePath, '.json')
-    if (!fs.existsSync(extraDataPath)) {
-      res.json({ payload: null }).status(404)
-      return
+    try {
+      const payload = await readRecordExtraData(replaceExtName(record.savePath, '.json'))
+      res.json({ payload })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      res.status(404).json({ payload: null })
     }
-
-    const buffer = await fs.promises.readFile(extraDataPath)
-
-    res.json({
-      payload: JSON.parse(buffer.toString()),
-    })
   }),
 )
 
@@ -122,7 +149,7 @@ router.route('/records/:id/ass').post(
   asyncRouteHandler(async (req, res) => {
     const { id } = req.params
     const record = db.getRecord(id)
-    if (record == null || !fs.existsSync(replaceExtName(record.savePath, '.json'))) {
+    if (record == null || !recordExtraDataExists(replaceExtName(record.savePath, '.json'))) {
       res.status(404).json({ payload: null })
       return
     }
@@ -146,7 +173,11 @@ router
   .post((req, res) => {
     const { id } = req.params
     const record = db.getRecord(id)
-    if (record == null || !fs.existsSync(record.savePath) || !fs.existsSync(replaceExtName(record.savePath, '.json'))) {
+    if (
+      record == null ||
+      !fs.existsSync(record.savePath) ||
+      !recordExtraDataExists(replaceExtName(record.savePath, '.json'))
+    ) {
       res.status(404).json({ payload: null })
       return
     }
@@ -178,7 +209,7 @@ export function createRouter(serverOpts: Pick<ServerOpts, 'getSettings'>) {
       }
 
       const extraDataPath = replaceExtName(record.savePath, '.json')
-      if (!fs.existsSync(extraDataPath)) {
+      if (!recordExtraDataExists(extraDataPath)) {
         res.json({ payload: null }).status(404)
         return
       }

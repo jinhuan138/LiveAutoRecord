@@ -77,9 +77,10 @@ async function clearInvalidRecords(args: API.clearInvalidRecords.Args): Promise<
   return resp.data.payload
 }
 
-async function getRecords(args: API.getRecords.Args): Promise<API.getRecords.Resp> {
+async function getRecords(args: API.getRecords.Args, signal?: AbortSignal): Promise<API.getRecords.Resp> {
   const resp = await requester.get<{ payload: API.getRecords.Resp }>('/records', {
     params: args,
+    signal,
   })
   return resp.data.payload
 }

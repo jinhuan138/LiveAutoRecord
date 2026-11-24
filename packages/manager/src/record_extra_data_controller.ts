@@ -1,10 +1,5 @@
-/**
- * 用一个视频之外的独立文件来存储元信息和弹幕、礼物等信息。
- * 暂时使用 json 作为存储方案试试效果，猜测可能会有实时写入差、占用空间大的问题。
- */
 import fs from 'fs'
-import { Message } from './common'
-import { asyncThrottle } from './utils'
+import type { Message } from './common'
 import { redactFFmpegArgs } from './sensitive'
 
 export interface RecordExtraData {
@@ -12,60 +7,146 @@ export interface RecordExtraData {
     title?: string
     recordStartTimestamp: number
     recordStopTimestamp?: number
-    /** 已脱敏，不包含 Cookie 等凭证 */
     ffmpegArgs?: string[]
-    // TODO: 要再加个 video width / height，给之后可能会做的 ass 使用
   }
-  /** 这个数组预期上是一个根据 timestamp 排序的有序数组，方便做一些时间段查询 */
   messages: Message[]
 }
 
 export interface RecordExtraDataController {
-  /** 设计上来说，外部程序不应该能直接修改 data 上的东西 */
   readonly data: RecordExtraData
   addMessage: (message: Message) => void
   setMeta: (meta: Partial<RecordExtraData['meta']>) => void
-  flush: () => void
+  flush: () => Promise<void>
 }
 
-export function createRecordExtraDataController(savePath: string): RecordExtraDataController {
-  const data: RecordExtraData = {
-    meta: {
-      recordStartTimestamp: Date.now(),
-    },
-    messages: [],
-  }
+type LogEntry = { meta: RecordExtraData['meta'] } | Message
+type WriteBatch = { buffer: Buffer; messages: Message[] }
 
-  const scheduleSave = asyncThrottle(() => fs.promises.writeFile(savePath, JSON.stringify(data)), 30e3, {
-    immediateRunWhenEndOfDefer: true,
-  })
+const maxBatchSize = 500
+const maxBatchDelay = 30_000
 
-  const addMessage: RecordExtraDataController['addMessage'] = (comment) => {
-    data.messages.push(comment)
-    scheduleSave()
-  }
+export function getRecordExtraDataLogPath(legacyPath: string): string {
+  return legacyPath.endsWith('.json') ? `${legacyPath}l` : `${legacyPath}.jsonl`
+}
 
-  const setMeta: RecordExtraDataController['setMeta'] = (meta) => {
-    data.meta = {
-      ...data.meta,
-      ...meta,
+export function recordExtraDataExists(legacyPath: string): boolean {
+  return fs.existsSync(getRecordExtraDataLogPath(legacyPath)) || fs.existsSync(legacyPath)
+}
+
+export async function readRecordExtraData(legacyPath: string): Promise<RecordExtraData> {
+  let meta: RecordExtraData['meta'] | undefined
+  const messages: Message[] = []
+  let remaining = ''
+  try {
+    const stream = fs.createReadStream(getRecordExtraDataLogPath(legacyPath), { encoding: 'utf8' })
+    for await (const chunk of stream) {
+      const lines = (remaining + chunk).split('\n')
+      remaining = lines.pop() ?? ''
+      for (const line of lines) {
+        const entry: LogEntry = JSON.parse(line)
+        if ('meta' in entry) meta = entry.meta
+        else messages.push(entry)
+      }
     }
-    // 这个文件会被用户当作弹幕文件分享，所以写入前必须脱敏
-    if (meta.ffmpegArgs) {
-      data.meta.ffmpegArgs = redactFFmpegArgs(meta.ffmpegArgs)
-    }
-    scheduleSave()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
 
-  const flush: RecordExtraDataController['flush'] = () => {
-    scheduleSave()
-    scheduleSave.flush()
+  // The last line can be incomplete if the recording is still writing or was interrupted.
+  if (meta != null) return { meta, messages }
+  return JSON.parse(await fs.promises.readFile(legacyPath, 'utf8')) as RecordExtraData
+}
+
+export function createRecordExtraDataController(legacyPath: string): RecordExtraDataController {
+  const logPath = getRecordExtraDataLogPath(legacyPath)
+  let meta: RecordExtraData['meta'] = { recordStartTimestamp: Date.now() }
+  let metaDirty = true
+  const pending: Message[] = []
+  let batch: WriteBatch | undefined
+  let committedBytes = 0
+  let timer: NodeJS.Timeout | undefined
+  let writing: Promise<void> | undefined
+
+  function createBatch(): WriteBatch {
+    const messages = pending.slice(0, maxBatchSize)
+    const entries: LogEntry[] = metaDirty ? [{ meta }, ...messages] : messages
+    const buffer = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
+    pending.splice(0, messages.length)
+    metaDirty = false
+    return { buffer, messages }
+  }
+
+  async function writePending() {
+    while (batch != null || metaDirty || pending.length > 0) {
+      batch ??= createBatch()
+      const { buffer } = batch
+      const handle = await fs.promises.open(logPath, committedBytes === 0 ? 'w' : 'r+')
+      try {
+        // Retry an interrupted batch at the same offset so a partial write cannot duplicate messages.
+        let written = 0
+        while (written < buffer.length) {
+          const { bytesWritten } = await handle.write(
+            buffer,
+            written,
+            buffer.length - written,
+            committedBytes + written,
+          )
+          if (bytesWritten === 0) throw new Error('Could not write recording metadata')
+          written += bytesWritten
+        }
+      } finally {
+        await handle.close()
+      }
+      committedBytes += buffer.length
+      batch = undefined
+    }
+  }
+
+  function flush() {
+    clearTimeout(timer)
+    timer = undefined
+    writing ??= writePending().finally(() => {
+      writing = undefined
+      if (batch == null && (metaDirty || pending.length > 0)) schedule(pending.length >= maxBatchSize)
+    })
+    return writing
+  }
+
+  function runScheduledFlush() {
+    void flush().catch((error) => console.error('Failed to write recording metadata:', error))
+  }
+
+  function schedule(immediate: boolean) {
+    if (writing != null) return
+    if (immediate && batch == null) {
+      runScheduledFlush()
+      return
+    }
+    timer ??= setTimeout(runScheduledFlush, maxBatchDelay)
   }
 
   return {
-    data,
-    addMessage,
-    setMeta,
+    get data() {
+      const messages: Message[] = []
+      if (committedBytes > 0) {
+        const content = fs.readFileSync(logPath).subarray(0, committedBytes).toString('utf8')
+        for (const line of content.trimEnd().split('\n')) {
+          const entry: LogEntry = JSON.parse(line)
+          if (!('meta' in entry)) messages.push(entry)
+        }
+      }
+      return { meta: { ...meta }, messages: messages.concat(batch?.messages ?? [], pending) }
+    },
+    addMessage(message) {
+      pending.push(message)
+      schedule(pending.length >= maxBatchSize)
+    },
+    setMeta(update) {
+      meta = { ...meta, ...update }
+      if (update.ffmpegArgs) meta.ffmpegArgs = redactFFmpegArgs(update.ffmpegArgs)
+      metaDirty = true
+      schedule(committedBytes === 0)
+    },
     flush,
   }
 }

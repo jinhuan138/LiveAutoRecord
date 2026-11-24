@@ -23,6 +23,7 @@ import type { DatabaseSchema, RecordModel, RecorderModel, QueryRecordsOpts } fro
 import { asyncThrottle } from '../utils'
 import { ServerOpts } from '../types'
 import { reportDataRecovery } from '../data_recovery'
+import { createRecordSearch } from './record-search'
 
 export type { DatabaseSchema, RecordModel, RecorderModel, QueryRecordsOpts }
 
@@ -89,7 +90,48 @@ export function getRecord(id: RecordModel['id']): RecordModel | undefined {
   return db.data.records.find((item) => item.id === id)
 }
 
-export function getRecords(opts: QueryRecordsOpts = {}): {
+const recordSortValues = {
+  startTimestamp: (record: RecordModel) => record.startTimestamp,
+  stopTimestamp: (record: RecordModel) => record.stopTimestamp,
+  totalTime: (record: RecordModel) =>
+    record.stopTimestamp == null ? undefined : record.stopTimestamp - record.startTimestamp,
+  stopReason: (record: RecordModel) => record.stopReason ?? '/',
+}
+
+export type RecordSortKey = keyof typeof recordSortValues
+
+export function isRecordSortKey(value: unknown): value is RecordSortKey {
+  return typeof value === 'string' && Object.hasOwn(recordSortValues, value)
+}
+
+export interface RecordQuery extends QueryRecordsOpts {
+  search?: string
+  timeZone?: string
+  locale?: string
+  sortBy?: RecordSortKey
+  sortOrder?: 'asc' | 'desc'
+}
+
+const compareText = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare
+
+function sortRecords(items: RecordModel[], key: RecordSortKey, order: RecordQuery['sortOrder']): RecordModel[] {
+  const valueOf = recordSortValues[key]
+  const direction = order === 'desc' ? -1 : 1
+  return items.toSorted((a, b) => {
+    const first = valueOf(a)
+    const second = valueOf(b)
+    if (first == null && second != null) return 1
+    if (first != null && second == null) return -1
+
+    const comparison =
+      typeof first === 'number' && typeof second === 'number'
+        ? first - second
+        : compareText(String(first ?? ''), String(second ?? ''))
+    return comparison * direction || b.startTimestamp - a.startTimestamp || a.id.localeCompare(b.id)
+  })
+}
+
+export function getRecords(opts: RecordQuery = {}): {
   items: RecordModel[]
   total: number
 } {
@@ -100,15 +142,21 @@ export function getRecords(opts: QueryRecordsOpts = {}): {
   if (opts.recorderId != null) {
     items = items.filter((item) => item.recorderId === opts.recorderId)
   }
-  const count = items.length
-  if (opts.start != null) {
-    items = items.slice(opts.start)
+  const search = opts.search?.trim()
+  if (search) {
+    items = items.filter(createRecordSearch(search, opts.timeZone, opts.locale))
   }
-  if (opts.count != null) {
-    items = items.slice(0, opts.count)
+  if (opts.sortBy != null) {
+    items = sortRecords(items, opts.sortBy, opts.sortOrder)
   }
 
-  return { items, total: count }
+  const total = items.length
+  const start = opts.start ?? 0
+  if (opts.start != null || opts.count != null) {
+    items = items.slice(start, opts.count == null ? undefined : start + opts.count)
+  }
+
+  return { items, total }
 }
 
 export type InsertRecordProps = RecordModel
@@ -130,7 +178,9 @@ export function removeRecord(id: RecordModel['id']): void {
 
 export function removeRecords(ids: RecordModel['id'][]): void {
   assertDBReady(db)
-  db.data.records = db.data.records.filter((record) => !ids.includes(record.id))
+  if (ids.length === 0) return
+  const removedIds = new Set(ids)
+  db.data.records = db.data.records.filter((record) => !removedIds.has(record.id))
   scheduleSave()
 }
 

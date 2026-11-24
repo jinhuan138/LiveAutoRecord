@@ -194,7 +194,9 @@ const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async fun
     client?.stop()
     client?.all.clear()
     extraDataController.setMeta({ recordStopTimestamp: Date.now() })
-    extraDataController.flush()
+    await extraDataController.flush().catch((error) => {
+      this.emit('DebugLog', { type: 'danmaku', text: `Failed to write recording metadata: ${String(error)}` })
+    })
 
     this.usedStream = undefined
     this.usedSource = undefined

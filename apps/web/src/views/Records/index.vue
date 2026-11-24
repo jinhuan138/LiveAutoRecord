@@ -42,14 +42,15 @@
       @click:close="alert = false"
     ></v-alert>
 
-    <div v-if="loading" class="text-center p-4">
-      <v-progress-circular indeterminate color="primary" />
-    </div>
-
-    <v-data-table
-      v-else
+    <v-data-table-server
       item-key="id"
-      items-per-page="25"
+      v-model:page="page"
+      v-model:items-per-page="pageSize"
+      v-model:sort-by="sortBy"
+      :items-per-page-options="[10, 25, 50, 100]"
+      :items-length="total"
+      :loading="loading"
+      must-sort
       :items="records"
       :headers="[
         {
@@ -57,9 +58,6 @@
           key: 'startTimestamp',
           value: (record: ClientRecord) => format(record.startTimestamp, 'yyyy/MM/dd HH:mm:ss'),
           sortable: true,
-          sortRaw(a: ClientRecord, b: ClientRecord) {
-            return a.startTimestamp - b.startTimestamp
-          },
           width: $i18n.locale.startsWith('zh') ? 160 : 200,
         },
         {
@@ -68,11 +66,6 @@
           value: (record: ClientRecord) =>
             record.stopTimestamp ? format(record.stopTimestamp, 'yyyy/MM/dd HH:mm:ss') : '/',
           sortable: true,
-          sortRaw(a: ClientRecord, b: ClientRecord) {
-            if (a.stopTimestamp == null) return 1
-            if (b.stopTimestamp == null) return -1
-            return a.stopTimestamp - b.stopTimestamp
-          },
           width: $i18n.locale.startsWith('zh') ? 160 : 200,
         },
         {
@@ -80,13 +73,6 @@
           key: 'totalTime',
           value: (record: ClientRecord) => (record.stopTimestamp ? formatInterval(record) : '/'),
           sortable: true,
-          sortRaw(a: ClientRecord, b: ClientRecord) {
-            if (a.stopTimestamp == null) return 1
-            if (b.stopTimestamp == null) return -1
-            const aTime = a.stopTimestamp - a.startTimestamp
-            const bTime = b.stopTimestamp - b.startTimestamp
-            return aTime - bTime
-          },
           width: 144,
         },
         {
@@ -109,7 +95,6 @@
           width: $i18n.locale.startsWith('zh') ? 420 : 560,
         },
       ]"
-      :search="search"
     >
       <template v-slot:header.actions="{ column }">
         <span class="pl-3">{{ column.title }}</span>
@@ -165,14 +150,14 @@
           </span>
         </div>
       </template>
-    </v-data-table>
+    </v-data-table-server>
   </v-card>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { ClientRecord, DanmakuBurnTask } from '@autorecord/http-server'
+import type { API, ClientRecord, DanmakuBurnTask } from '@autorecord/http-server'
 import { isAxiosError } from 'axios'
 import { intervalToDuration } from 'date-fns'
 import { RouteNames } from '../../router'
@@ -182,21 +167,45 @@ import { InteractionService } from '../../services/InteractionService'
 import { useI18n } from 'vue-i18n'
 import { useDateFNS } from '../../i18n'
 
-const { t } = useI18n()
+const { locale, t } = useI18n()
 const { format, formatDuration } = useDateFNS()
 const route = useRoute()
 const router = useRouter()
-// TODO: 这里写的有点和路由层耦合了，应该把 query -> state 的处理放到路由层去
-const recorderId = route.name === RouteNames.RecorderRecords ? String(route.params.id) : undefined
+const recorderId = computed(() => (route.name === RouteNames.RecorderRecords ? String(route.params.id) : undefined))
 
 type Record = ClientRecord & { generatingSRT?: boolean; generatingASS?: boolean }
+type RecordSort = {
+  key: NonNullable<API.getRecords.Args['sortBy']>
+  order: NonNullable<API.getRecords.Args['sortOrder']>
+}
 const records = ref<Record[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(25)
+const sortBy = ref<RecordSort[]>([{ key: 'startTimestamp', order: 'desc' }])
 const loading = ref(true)
 const clearInvalidWarnVisible = ref(false)
 const requestingClearInvalid = ref(false)
 const alert = ref<false | { type: 'success' | 'error'; text: string }>(false)
 const search = ref('')
+const appliedSearch = ref('')
+const refreshKey = ref(0)
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 const burnTasks = reactive<{ [recordId: string]: DanmakuBurnTask }>({})
+
+watch(search, (value, _, onCleanup) => {
+  const timeout = setTimeout(() => {
+    const query = value.trim()
+    if (appliedSearch.value === query) return
+    page.value = 1
+    appliedSearch.value = query
+  }, 250)
+  onCleanup(() => clearTimeout(timeout))
+})
+
+watch(recorderId, () => {
+  page.value = 1
+})
 
 useEffectInLifecycle(() => {
   return InteractionService.onEscapeWhenBody(() => router.back())
@@ -243,21 +252,51 @@ function getBurnErrorText(task: DanmakuBurnTask) {
   }
 }
 
-const refreshRecords = async () => {
-  loading.value = true
-  const [res, tasks] = await Promise.all([
-    LARServerService.getRecords({
-      recorderId,
-      page: 1,
-      // TODO: 暂时全部拉下来做本地分页
-      pageSize: 1e10,
-    }),
-    LARServerService.getDanmakuBurnTasks({}),
-  ])
-  loading.value = false
-  records.value = [...res.items].reverse()
-  tasks.forEach((task) => (burnTasks[task.recordId] = task))
-}
+watch(
+  [page, pageSize, sortBy, appliedSearch, recorderId, locale, refreshKey],
+  async (_, __, onCleanup) => {
+    const controller = new AbortController()
+    onCleanup(() => controller.abort())
+    const sort = sortBy.value[0]
+    loading.value = true
+    records.value = []
+    try {
+      const result = await LARServerService.getRecords(
+        {
+          recorderId: recorderId.value,
+          page: page.value,
+          pageSize: pageSize.value,
+          search: appliedSearch.value || undefined,
+          timeZone,
+          locale: locale.value,
+          sortBy: sort?.key ?? 'startTimestamp',
+          sortOrder: sort?.order ?? 'desc',
+        },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
+
+      total.value = result.total
+      records.value = result.items
+      const lastPage = Math.max(1, result.totalPage)
+      if (page.value > lastPage) page.value = lastPage
+    } catch (err) {
+      if (!controller.signal.aborted) alert.value = { type: 'error', text: getRequestErrorText(err) }
+    } finally {
+      if (!controller.signal.aborted) loading.value = false
+    }
+  },
+  { immediate: true },
+)
+
+onMounted(async () => {
+  try {
+    const tasks = await LARServerService.getDanmakuBurnTasks({})
+    tasks.forEach((task) => (burnTasks[task.recordId] ??= task))
+  } catch (err) {
+    alert.value = { type: 'error', text: getRequestErrorText(err) }
+  }
+})
 
 const genSRT = async (record: Record) => {
   if (record.generatingSRT) return
@@ -306,16 +345,16 @@ function getRequestErrorText(err: unknown) {
 const clearInvalid = async () => {
   requestingClearInvalid.value = true
   try {
-    const count = await LARServerService.clearInvalidRecords({ recorderId })
+    const count = await LARServerService.clearInvalidRecords({ recorderId: recorderId.value })
     alert.value = { type: 'success', text: t('records.invalid_record_removed', { count }) }
+    clearInvalidWarnVisible.value = false
+    refreshKey.value++
+  } catch (err) {
+    alert.value = { type: 'error', text: getRequestErrorText(err) }
   } finally {
     requestingClearInvalid.value = false
   }
-  clearInvalidWarnVisible.value = false
-  refreshRecords()
 }
-
-onMounted(refreshRecords)
 
 function formatInterval(record: ClientRecord) {
   const stopTimestamp = record.stopTimestamp ?? record.startTimestamp

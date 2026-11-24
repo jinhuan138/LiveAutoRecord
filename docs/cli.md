@@ -874,7 +874,7 @@ Showing 2 of 2 records
 
 #### records ass
 
-根据录制时保存的弹幕文件（与视频同名的 `.json`）生成滚动弹幕样式的 ASS 字幕，保存为视频旁边的 `.ass`（已存在时覆盖）。弹幕样式读取桌面端 / HTTP Server 共用的 `settings.json` 中的 `danmakuStyle`，字段说明见 [api.md 的 Settings 端点](./api.md#52-更新设置)。
+根据录制时保存的弹幕文件（与视频同名的 `.jsonl` 或旧版 `.json`）生成滚动弹幕样式的 ASS 字幕，保存为视频旁边的 `.ass`（已存在时覆盖）。弹幕样式读取桌面端 / HTTP Server 共用的 `settings.json` 中的 `danmakuStyle`，字段说明见 [api.md 的 Settings 端点](./api.md#52-更新设置)。
 
 ```
 lar records ass <id>

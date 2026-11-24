@@ -8,7 +8,7 @@ import {
   ProviderAuthStatus,
 } from '@autorecord/manager'
 import { Settings } from '@autorecord/shared'
-import { RecordModel } from '../db'
+import type { RecordModel, RecordSortKey } from '../db'
 import { RecorderExtra } from '../manager'
 import type { DanmakuBurnTask } from '../danmaku_burn'
 import type { DataRecoveryNotice } from '../data_recovery'
@@ -143,6 +143,11 @@ export namespace API {
   export namespace getRecords {
     export interface Args extends PagedArgs {
       recorderId?: Recorder['id']
+      search?: string
+      timeZone?: string
+      locale?: string
+      sortBy?: RecordSortKey
+      sortOrder?: 'asc' | 'desc'
     }
 
     export interface Resp extends PagedResp {

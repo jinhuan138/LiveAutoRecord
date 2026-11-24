@@ -198,7 +198,9 @@ const checkLiveStatusAndRecord: Recorder['checkLiveStatusAndRecord'] = async fun
     // TODO: 这里可能会有内存泄露，因为事件还没清，之后再检查下看看。
     client?.stop()
     extraDataController.setMeta({ recordStopTimestamp: Date.now() })
-    extraDataController.flush()
+    await extraDataController.flush().catch((error) => {
+      this.emit('DebugLog', { type: 'danmaku', text: `Failed to write recording metadata: ${String(error)}` })
+    })
 
     this.usedStream = undefined
     this.usedSource = undefined
