@@ -36,6 +36,8 @@ export type ClientRecorder = Omit<
 
 export type ClientRecord = RecordModel & { isFileExists?: boolean }
 
+type GlobalSettings = Omit<Settings, 'autoGenerateSRTOnRecordStop' | 'autoBurnDanmakuOnRecordStop'>
+
 export namespace API {
   export namespace getRecorders {
     export interface Args extends PagedArgs {}
@@ -62,7 +64,15 @@ export namespace API {
   export namespace updateRecorder {
     export type Args = Pick<
       RecorderCreateOpts,
-      'id' | 'remarks' | 'disableAutoCheck' | 'quality' | 'streamPriorities' | 'sourcePriorities'
+      | 'id'
+      | 'remarks'
+      | 'disableAutoCheck'
+      | 'disableProvideCommentsWhenRecording'
+      | 'autoGenerateSRTOnRecordStop'
+      | 'autoBurnDanmakuOnRecordStop'
+      | 'quality'
+      | 'streamPriorities'
+      | 'sourcePriorities'
     >
 
     export type Resp = ClientRecorder
@@ -206,13 +216,13 @@ export namespace API {
   export namespace getSettings {
     export interface Args {}
 
-    export type Resp = Settings
+    export type Resp = GlobalSettings
   }
 
   export namespace setSettings {
-    export type Args = Settings
+    export type Args = GlobalSettings
 
-    export type Resp = Settings
+    export type Resp = GlobalSettings
   }
 
   export namespace logMethod {
@@ -299,7 +309,7 @@ export interface RecordStart {
 
 export interface SettingsChange {
   event: 'settings_change'
-  settings: Settings
+  settings: GlobalSettings
 }
 
 export interface DanmakuBurnTaskUpdate {

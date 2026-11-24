@@ -45,6 +45,11 @@ export default {
     ffmpeg_args: 'FFMPEG recording parameters',
     disable: 'Disable',
     disable_auto_check: 'Disable automatic recording',
+    record_danmaku: 'Record live chat',
+    record_danmaku_hint: 'Applies to this room starting with the next recording',
+    auto_generate_srt: 'Auto generate SRT subtitle file when recording ends',
+    auto_burn_danmaku:
+      'Auto burn danmaku into a new video when recording ends (saved as xxx.弹幕版.mp4, original video kept)',
     refresh: 'Refresh',
     stop: 'Stop',
     history: 'History',
@@ -94,7 +99,6 @@ export default {
     app_settings: 'Appliaction Settings',
     default_notice_format: "Channel {'{channelId}'} started recording",
     close_to_tray: 'Close to tray',
-    auto_generate_srt: 'Auto generate SRT subtitle file when recording ends',
     auto_remove_empty_record: 'Auto remove 0kb recording records',
     notify_when_record_start: 'Notify when recording starts',
     notice_format: 'Notice content format',
@@ -103,8 +107,6 @@ export default {
       "Wrap the variable name with `{'{}'}` to use it, such as `Channel {'{channelId}'} started recording`",
     debug_mode: 'Debug mode',
     danmaku_burn: 'Danmaku burn-in',
-    auto_burn_danmaku:
-      'Auto burn danmaku into a new video when recording ends (saved as xxx.弹幕版.mp4, original video kept)',
     danmaku_burn_encoder: 'Video encoder',
     danmaku_burn_encoder_hint: 'Hardware encoders are faster, falls back to CPU encoding when unavailable',
     encoder_libx264: 'CPU (libx264, best compatibility)',

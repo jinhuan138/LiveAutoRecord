@@ -7,11 +7,11 @@ export interface Settings {
   noticeOnRecordStart: boolean
   noticeFormat?: string
   debugMode?: boolean
-  autoGenerateSRTOnRecordStop?: boolean
   autoRemoveRecordWhenTinySize?: boolean
   locale?: string
   sortMode?: string
-  /** 录制结束后自动压制一份带弹幕的视频（原视频保留） */
+  /** 旧版全局值，仅用于迁移到各录制任务。 */
+  autoGenerateSRTOnRecordStop?: boolean
   autoBurnDanmakuOnRecordStop?: boolean
   danmakuBurnEncoder?: DanmakuBurnEncoder
   danmakuStyle?: DanmakuStyle

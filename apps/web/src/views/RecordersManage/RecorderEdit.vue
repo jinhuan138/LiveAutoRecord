@@ -71,6 +71,24 @@
           :hint="$t('edit.source_priority_input_hint')"
         />
 
+        <v-checkbox
+          v-model="recordDanmaku"
+          :label="$t('recorder.record_danmaku')"
+          :hint="$t('recorder.record_danmaku_hint')"
+          persistent-hint
+        />
+        <v-checkbox
+          v-model="recorder.autoGenerateSRTOnRecordStop"
+          :label="$t('recorder.auto_generate_srt')"
+          :disabled="!recordDanmaku"
+          hide-details
+        />
+        <v-checkbox
+          v-model="recorder.autoBurnDanmakuOnRecordStop"
+          :label="$t('recorder.auto_burn_danmaku')"
+          :disabled="!recordDanmaku"
+          hide-details
+        />
         <v-checkbox :label="$t('recorder.disable_auto_check')" v-model="recorder.disableAutoCheck" />
       </v-form>
     </v-card-item>
@@ -88,7 +106,7 @@
 <script setup lang="ts">
 import type { API, ClientRecorder } from '@autorecord/http-server'
 import { debounce } from 'lodash-es'
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEffectInLifecycle } from '../../hooks'
 import { RouteNames } from '../../router'
@@ -118,6 +136,13 @@ const recorder = reactive<Partial<ClientRecorder> & API.addRecorder.Args & API.u
   quality: 'medium',
   streamPriorities: [],
   sourcePriorities: [],
+})
+
+const recordDanmaku = computed({
+  get: () => !recorder.disableProvideCommentsWhenRecording,
+  set: (enabled: boolean) => {
+    recorder.disableProvideCommentsWhenRecording = !enabled
+  },
 })
 
 useEffectInLifecycle(() => {

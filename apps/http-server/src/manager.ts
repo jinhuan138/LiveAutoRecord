@@ -50,6 +50,8 @@ export const defaultManagerConfig: ManagerConfig = {
 
 export function addRecorderWithAutoIncrementId(args: RecorderCreateOpts<RecorderExtra>): Recorder<RecorderExtra> {
   return recorderManager.addRecorder({
+    autoGenerateSRTOnRecordStop: false,
+    autoBurnDanmakuOnRecordStop: false,
     ...args,
     id: genRecorderIdInDB().toString(),
   })
@@ -115,12 +117,10 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
     recorderManager.addRecorder(serialized)
   }
 
-  if (recorderManager.autoCheckLiveStatusAndRecord) {
-    recorderManager.startCheckLoop()
-  }
-
   recorderManager.on('RecordStart', ({ recorder, recordHandle }) => {
     const recordId = recordHandle.id
+    const recordDanmaku = !recorder.disableProvideCommentsWhenRecording
+    const { autoGenerateSRTOnRecordStop, autoBurnDanmakuOnRecordStop } = recorder
 
     insertRecord({
       id: recordId,
@@ -136,8 +136,7 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
       if (recordHandle.id !== recordId) return
       recorderManager.off('RecordStop', updateRecordOnceRecordStop)
 
-      const { autoGenerateSRTOnRecordStop, autoBurnDanmakuOnRecordStop, autoRemoveRecordWhenTinySize } =
-        await serverOpts.getSettings()
+      const { autoRemoveRecordWhenTinySize } = await serverOpts.getSettings()
       if (
         autoRemoveRecordWhenTinySize &&
         (!fs.existsSync(recordHandle.savePath) || fs.statSync(recordHandle.savePath).size === 0)
@@ -159,7 +158,7 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
       })
 
       const extraDataPath = replaceExtName(recordHandle.savePath, '.json')
-      if (!fs.existsSync(extraDataPath)) return
+      if (!recordDanmaku || !fs.existsSync(extraDataPath)) return
 
       if (autoBurnDanmakuOnRecordStop) {
         enqueueDanmakuBurn({ recordId, savePath: recordHandle.savePath, waitForFileStable: true })
@@ -189,6 +188,10 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
   recorderManager.on('RecorderAdded', (recorder) => insertRecorder(recorder.toJSON()))
   recorderManager.on('RecorderRemoved', (recorder) => removeRecorder(recorder.id))
   recorderManager.on('RecorderUpdated', ({ recorder }) => updateRecorder(recorder.toJSON()))
+
+  if (recorderManager.autoCheckLiveStatusAndRecord) {
+    recorderManager.startCheckLoop()
+  }
 
   redactLegacyExtraDataFiles(serverOpts)
 }

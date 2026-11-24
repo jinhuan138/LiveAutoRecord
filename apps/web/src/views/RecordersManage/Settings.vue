@@ -136,12 +136,6 @@
         />
 
         <v-checkbox
-          :label="t('settings.auto_generate_srt')"
-          v-model="settings.autoGenerateSRTOnRecordStop"
-          hide-details
-        />
-
-        <v-checkbox
           :label="t('settings.auto_remove_empty_record')"
           v-model="settings.autoRemoveRecordWhenTinySize"
           hide-details
@@ -202,12 +196,6 @@
       </div>
 
       <v-form v-else>
-        <v-checkbox
-          :label="t('settings.auto_burn_danmaku')"
-          v-model="settings.autoBurnDanmakuOnRecordStop"
-          hide-details
-        />
-
         <v-select
           class="mt-2"
           :label="t('settings.danmaku_burn_encoder')"

@@ -49,6 +49,19 @@ export async function initDB(serverOpts: ServerOpts) {
     db.data.recorders = []
     db.data.nextRecorderId = 1
   }
+
+  const legacyRecorders = db.data.recorders.filter(
+    (recorder) => recorder.autoGenerateSRTOnRecordStop == null || recorder.autoBurnDanmakuOnRecordStop == null,
+  )
+  if (legacyRecorders.length > 0) {
+    const settings = await serverOpts.getSettings()
+    for (const recorder of legacyRecorders) {
+      recorder.autoGenerateSRTOnRecordStop ??= settings.autoGenerateSRTOnRecordStop === true
+      recorder.autoBurnDanmakuOnRecordStop ??= settings.autoBurnDanmakuOnRecordStop === true
+    }
+    ensureFileFolderExists(dbPath)
+    await db.write()
+  }
 }
 
 function assertDBReady<T>(db: Low<T>): asserts db is Low<T> & { data: T } {

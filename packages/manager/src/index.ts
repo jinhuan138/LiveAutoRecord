@@ -30,7 +30,19 @@ export function defaultToJSON<E extends AnyObject>(
   return {
     providerId: provider.id,
     ...R.pick(
-      ['id', 'channelId', 'remarks', 'disableAutoCheck', 'quality', 'streamPriorities', 'sourcePriorities', 'extra'],
+      [
+        'id',
+        'channelId',
+        'remarks',
+        'disableAutoCheck',
+        'disableProvideCommentsWhenRecording',
+        'autoGenerateSRTOnRecordStop',
+        'autoBurnDanmakuOnRecordStop',
+        'quality',
+        'streamPriorities',
+        'sourcePriorities',
+        'extra',
+      ],
       recorder,
     ),
   }

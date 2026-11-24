@@ -5,16 +5,27 @@ import { ServerOpts } from '../types'
 import { scheduleBroadcastMessage } from './event'
 import { asyncRouteHandler } from './utils'
 
+function splitLegacyDanmakuSettings(settings: Settings) {
+  const { autoGenerateSRTOnRecordStop, autoBurnDanmakuOnRecordStop, ...globalSettings } = settings
+  return {
+    globalSettings,
+    legacyDanmakuSettings: { autoGenerateSRTOnRecordStop, autoBurnDanmakuOnRecordStop },
+  }
+}
+
 export function createRouter(serverOpts: ServerOpts) {
   const router = Router()
 
   async function getSettings(args: API.getSettings.Args): Promise<API.getSettings.Resp> {
-    return serverOpts.getSettings()
+    return splitLegacyDanmakuSettings(await serverOpts.getSettings()).globalSettings
   }
 
   async function setSettings(args: API.setSettings.Args): Promise<API.setSettings.Resp> {
-    const newSettings: Settings = args
-    return serverOpts.setSettings(newSettings)
+    // 保留旧值，恢复迁移前的录制任务备份时仍可使用。
+    const { legacyDanmakuSettings } = splitLegacyDanmakuSettings(await serverOpts.getSettings())
+    const { globalSettings } = splitLegacyDanmakuSettings(args)
+    const newSettings = await serverOpts.setSettings({ ...globalSettings, ...legacyDanmakuSettings })
+    return splitLegacyDanmakuSettings(newSettings).globalSettings
   }
 
   router

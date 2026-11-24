@@ -46,6 +46,8 @@ export const defaultManagerConfig: ManagerConfig = {
 
 export function addRecorderWithAutoIncrementId(args: RecorderCreateOpts<RecorderExtra>): Recorder<RecorderExtra> {
   return recorderManager.addRecorder({
+    autoGenerateSRTOnRecordStop: false,
+    autoBurnDanmakuOnRecordStop: false,
     ...args,
     id: genRecorderIdInDB().toString(),
   })

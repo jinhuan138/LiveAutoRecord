@@ -7,6 +7,14 @@ import { asyncRouteHandler, createPagedResultGetter, getNumberFromQuery, recorde
 
 const router = Router()
 
+function hasValidDanmakuSettings(args: API.addRecorder.Args | API.updateRecorder.Args): boolean {
+  return [
+    args.disableProvideCommentsWhenRecording,
+    args.autoGenerateSRTOnRecordStop,
+    args.autoBurnDanmakuOnRecordStop,
+  ].every((value) => value === undefined || typeof value === 'boolean')
+}
+
 // API 的实际实现，这里负责实现对外暴露的接口，并假设 Args 都已经由上一层解析好了
 // TODO: 暂时先一起放这个文件里，后面要拆分放到合适的地方
 
@@ -104,6 +112,9 @@ router
       'channelId',
       'remarks',
       'disableAutoCheck',
+      'disableProvideCommentsWhenRecording',
+      'autoGenerateSRTOnRecordStop',
+      'autoBurnDanmakuOnRecordStop',
       'quality',
       'streamPriorities',
       'sourcePriorities',
@@ -113,6 +124,11 @@ router
     const channelId = typeof args.channelId === 'string' ? args.channelId.trim() : ''
     if (!/^[^\s/:?#]+$/.test(channelId)) {
       res.status(400).json({ message: 'A resolved channel ID is required' })
+      return
+    }
+
+    if (!hasValidDanmakuSettings(args)) {
+      res.status(400).json({ message: 'Danmaku settings must be booleans' })
       return
     }
 
@@ -132,10 +148,18 @@ router
       req.body as Omit<API.updateRecorder.Args, 'id'>,
       'remarks',
       'disableAutoCheck',
+      'disableProvideCommentsWhenRecording',
+      'autoGenerateSRTOnRecordStop',
+      'autoBurnDanmakuOnRecordStop',
       'quality',
       'streamPriorities',
       'sourcePriorities',
     )
+
+    if (!hasValidDanmakuSettings(patch)) {
+      res.status(400).json({ message: 'Danmaku settings must be booleans' })
+      return
+    }
 
     res.json({ payload: updateRecorder({ id, ...patch }) })
   })

@@ -14,6 +14,8 @@ export interface RecorderCreateOpts<E extends AnyObject = UnknownObject> {
   disableAutoCheck?: boolean
   // 用于性能优化的选项，为 true 时禁用弹幕录制
   disableProvideCommentsWhenRecording?: boolean
+  autoGenerateSRTOnRecordStop?: boolean
+  autoBurnDanmakuOnRecordStop?: boolean
   // 该项为用户配置，交给 recorder 作为决定使用哪个视频流的依据
   quality: Quality
   // 该项为用户配置，不同画质的视频流的优先级，如果设置了此项，将优先根据此决定使用哪个流，除非所有的指定流无效
