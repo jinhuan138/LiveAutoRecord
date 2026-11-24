@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { renderSavePathRule } from '@autorecord/manager'
 import { defaultManagerConfig, recorderManager } from '../manager'
 import { assertStringType, pick } from '../utils'
 import { API } from './api_types'
@@ -71,6 +72,26 @@ router
 
     res.json({ payload: updateManager(args) })
   })
+
+router.route('/manager/preview_save_path').post((req, res) => {
+  const { savePathRule, autoRemoveSystemReservedChars } = req.body ?? {}
+  if (typeof savePathRule !== 'string' || typeof autoRemoveSystemReservedChars !== 'boolean') {
+    res.status(400).json({ message: 'Expected a save path rule and an auto-remove setting' })
+    return
+  }
+
+  const payload: API.previewSavePath.Resp = renderSavePathRule(
+    { savePathRule, autoRemoveSystemReservedChars },
+    {
+      platform: 'Bilibili',
+      channelId: '196',
+      owner: 'Example streamer',
+      title: 'Live: Evening stream',
+      remarks: 'Example room',
+    },
+  )
+  res.json({ payload })
+})
 
 router.route('/manager/resolve_channel').get(
   asyncRouteHandler(async (req, res) => {

@@ -60,6 +60,11 @@ async function updateManager(args: API.updateManager.Args): Promise<API.updateMa
   return resp.data.payload
 }
 
+async function previewSavePath(args: API.previewSavePath.Args): Promise<API.previewSavePath.Resp> {
+  const resp = await requester.post<{ payload: API.previewSavePath.Resp }>('/manager/preview_save_path', args)
+  return resp.data.payload
+}
+
 async function resolveChannel(args: API.resolveChannel.Args): Promise<API.resolveChannel.Resp> {
   const resp = await requester.get<{ payload: API.resolveChannel.Resp }>('/manager/resolve_channel', {
     params: args,
@@ -203,6 +208,7 @@ export const LARServerService = {
   stopRecord,
   getManager,
   updateManager,
+  previewSavePath,
   resolveChannel,
   getManagerDefault,
   clearInvalidRecords,

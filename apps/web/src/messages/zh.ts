@@ -73,6 +73,9 @@ export default {
   settings: {
     global_recording_settings: '全局录制设置',
     save_path_rule: '保存路径规则',
+    save_path_preview: '预览路径',
+    save_path_preview_empty: '生成的路径为空，请检查保存路径规则。',
+    save_path_preview_failed: '无法预览保存路径，请重试。',
     select_save_dir: '选择录制保存目录',
     auto_remove_reserved_chars: '自动移除系统保留字符',
     spr_alert_title: '如何在保存路径中使用变量？',

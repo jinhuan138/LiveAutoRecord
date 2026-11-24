@@ -77,6 +77,9 @@ export default {
   settings: {
     global_recording_settings: 'Глобальные настройки записи',
     save_path_rule: 'Правило сохранения пути',
+    save_path_preview: 'Предпросмотр пути',
+    save_path_preview_empty: 'Получился пустой путь. Проверьте правило сохранения пути.',
+    save_path_preview_failed: 'Не удалось показать путь. Попробуйте ещё раз.',
     select_save_dir: 'Выберите папку для сохранения записей',
     auto_remove_reserved_chars: 'Автоматически удалить системные зарезервированные символы',
     spr_alert_title: 'Как использовать переменные в пути сохранения?',

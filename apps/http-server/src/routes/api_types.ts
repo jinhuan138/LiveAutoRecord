@@ -114,6 +114,15 @@ export namespace API {
     export type Resp = Omit<RecorderManagerCreateOpts, 'providers'>
   }
 
+  export namespace previewSavePath {
+    export interface Args {
+      savePathRule: string
+      autoRemoveSystemReservedChars: boolean
+    }
+
+    export type Resp = string
+  }
+
   export namespace resolveChannel {
     export interface Args {
       channelURL: string

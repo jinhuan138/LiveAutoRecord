@@ -88,6 +88,29 @@
           hide-details
         />
 
+        <v-btn
+          class="mb-3"
+          size="small"
+          variant="tonal"
+          :disabled="!manager.savePathRule || previewingSavePath"
+          :loading="previewingSavePath"
+          @click="previewSavePath"
+        >
+          {{ t('settings.save_path_preview') }}
+        </v-btn>
+        <div v-if="currentSavePathPreview" class="mb-3" role="status">
+          <p v-if="currentSavePathPreview.path" class="break-all font-mono">{{ currentSavePathPreview.path }}</p>
+          <p v-else class="text-error">
+            {{
+              t(
+                currentSavePathPreview.path === ''
+                  ? 'settings.save_path_preview_empty'
+                  : 'settings.save_path_preview_failed',
+              )
+            }}
+          </p>
+        </div>
+
         <v-text-field :label="t('settings.ffmpeg_output_args')" v-model="manager.ffmpegOutputArgs" />
 
         <v-checkbox
@@ -388,7 +411,7 @@
 
 <script setup lang="ts">
 import type { API } from '@autorecord/http-server'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { LARServerService } from '../../services/LARServerService'
@@ -413,6 +436,16 @@ const danmakuBurnEncoders: NonNullable<API.getSettings.Resp['danmakuBurnEncoder'
   'h264_amf',
 ]
 const savePathRuleAlertVisible = ref(false)
+const previewingSavePath = ref(false)
+const savePathPreview = shallowRef<{ args: API.previewSavePath.Args; path: string | null }>()
+const savePathPreviewArgs = computed<API.previewSavePath.Args>(() => ({
+  savePathRule: manager.value?.savePathRule ?? '',
+  autoRemoveSystemReservedChars: manager.value?.autoRemoveSystemReservedChars ?? true,
+}))
+const currentSavePathPreview = computed(() => {
+  const preview = savePathPreview.value
+  return preview?.args === savePathPreviewArgs.value ? preview : undefined
+})
 const noticeFormatAlertVisible = ref(false)
 const checkingUpdate = ref(false)
 
@@ -459,6 +492,20 @@ onMounted(async () => {
     }
   }
 })
+
+const previewSavePath = async () => {
+  const args = savePathPreviewArgs.value
+  previewingSavePath.value = true
+  savePathPreview.value = undefined
+  try {
+    const path = await LARServerService.previewSavePath(args)
+    savePathPreview.value = { args, path }
+  } catch {
+    savePathPreview.value = { args, path: null }
+  } finally {
+    previewingSavePath.value = false
+  }
+}
 
 /** 拆分保存路径规则：目录前缀为第一个含变量的路径段之前的部分，没有变量时则只保留文件名 */
 const splitSavePathRule = (rule: string) => {

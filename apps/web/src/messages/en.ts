@@ -76,6 +76,9 @@ export default {
   settings: {
     global_recording_settings: 'Global Recording Settings',
     save_path_rule: 'Save Path Rule',
+    save_path_preview: 'Preview path',
+    save_path_preview_empty: 'The generated path is empty. Check the save path rule.',
+    save_path_preview_failed: 'Could not preview the save path. Try again.',
     select_save_dir: 'Select recording save folder',
     auto_remove_reserved_chars: 'Auto remove system reserved characters',
     spr_alert_title: 'How to use variables in the save path?',

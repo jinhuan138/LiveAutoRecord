@@ -329,26 +329,35 @@ export function genSavePathFromRule<
   // TODO: 这里随便写的，后面再优化
   const provider = manager.providers.find((p) => p.id === recorder.toJSON().providerId)
 
-  const now = new Date()
-  const params = {
+  return renderSavePathRule(manager, {
     platform: provider?.name ?? 'unknown',
     channelId: recorder.channelId,
     remarks: recorder.remarks ?? '',
+    ...extData,
+  })
+}
+
+export function renderSavePathRule(
+  options: { savePathRule: string; autoRemoveSystemReservedChars: boolean },
+  data: { platform: string; channelId: ChannelId; remarks: string; owner: string; title: string },
+): string {
+  const now = new Date()
+  const params: Record<string, string> = {
     year: formatDate(now, 'yyyy'),
     month: formatDate(now, 'MM'),
     date: formatDate(now, 'dd'),
     hour: formatDate(now, 'HH'),
     min: formatDate(now, 'mm'),
     sec: formatDate(now, 'ss'),
-    ...extData,
+    ...data,
   }
-  if (manager.autoRemoveSystemReservedChars) {
+  if (options.autoRemoveSystemReservedChars) {
     for (const key in params) {
       params[key] = removeSystemReservedChars(params[key])
     }
   }
 
-  return formatTemplate(manager.savePathRule, params)
+  return formatTemplate(options.savePathRule, params)
 }
 
 // TODO: 目前只对 windows 做了处理
