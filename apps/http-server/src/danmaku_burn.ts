@@ -13,7 +13,7 @@ import {
   probeVideo,
   type DanmakuBurnErrorCode,
 } from '@autorecord/core'
-import type { RecordExtraData } from '@autorecord/manager'
+import { readRecordExtraData } from '@autorecord/manager'
 import type { DanmakuBurnEncoder } from '@autorecord/shared'
 import { ServerOpts } from './types'
 import { replaceExtName } from './utils'
@@ -125,7 +125,7 @@ export function cancelDanmakuBurn(recordId: string): DanmakuBurnTask | undefined
 /** 生成与录像同名的 .ass 文件，返回文件名 */
 export async function generateRecordASS(savePath: string): Promise<string> {
   const { danmakuStyle } = await getServerOpts().getSettings()
-  const extraData = await readExtraData(savePath)
+  const extraData = await readRecordExtraData(replaceExtName(savePath, '.json'))
   const videoInfo = await probeVideo(savePath).catch(() => ({ width: undefined, height: undefined }))
   const ass = generateDanmakuASS(extraData, {
     videoWidth: videoInfo.width,
@@ -165,7 +165,7 @@ async function runTask(ctx: TaskContext): Promise<void> {
     }
 
     const { danmakuBurnEncoder, danmakuStyle } = await getSettings()
-    const extraData = await readExtraData(savePath)
+    const extraData = await readRecordExtraData(replaceExtName(savePath, '.json'))
 
     let lastNotifyTime = 0
     const result = await burnDanmaku({
@@ -211,11 +211,6 @@ async function runTask(ctx: TaskContext): Promise<void> {
 function finish(ctx: TaskContext, patch: Partial<DanmakuBurnTask>) {
   Object.assign(ctx.task, patch, { finishedAt: Date.now() })
   notify(ctx)
-}
-
-async function readExtraData(savePath: string): Promise<RecordExtraData> {
-  const buffer = await fs.promises.readFile(replaceExtName(savePath, '.json'))
-  return JSON.parse(buffer.toString()) as RecordExtraData
 }
 
 /** 等到文件大小连续两次检查都不再变化 */

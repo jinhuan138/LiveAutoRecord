@@ -273,6 +273,11 @@ GET /api/records
 | `page`       | number | 否   | 页码，默认 1        |
 | `pageSize`   | number | 否   | 每页条目数，默认 10 |
 | `recorderId` | string | 否   | 按录制器 ID 过滤    |
+| `sortBy` | string | 否 | 排序字段，可选 `startTimestamp`、`stopTimestamp`、`totalTime`、`stopReason` |
+| `sortOrder` | string | 否 | `asc` 或 `desc`，指定排序字段时默认 `asc` |
+| `search` | string | 否 | 搜索路径、停止原因、时间和时长 |
+| `timeZone` | string | 否 | 搜索时间使用的 IANA 时区，默认使用服务端时区 |
+| `locale` | string | 否 | 搜索时长使用的语言，可选 `zh`、`en`、`ru` |
 
 **响应示例：**
 
@@ -344,7 +349,7 @@ GET /api/records/:id/video
 GET /api/records/:id/extra_data
 ```
 
-返回录制过程中收集的弹幕、礼物等附加数据。附加数据以独立 JSON 文件存储，文件名与视频同名但扩展名为 `.json`。
+返回录制过程中收集的弹幕、礼物等附加数据。新录制分批追加到与视频同名的 `.jsonl` 文件，已有的 `.json` 文件可以继续读取。两种文件通过该接口返回相同的数据结构。
 
 **路径参数：**
 

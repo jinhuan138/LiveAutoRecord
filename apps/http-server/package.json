@@ -34,6 +34,7 @@
     "@autorecord/manager": "workspace:^",
     "@autorecord/shared": "workspace:^",
     "cors": "^2.8.6",
+    "date-fns": "catalog:",
     "express": "^5.0.0",
     "lodash": "catalog:",
     "morgan": "^1.10.1",

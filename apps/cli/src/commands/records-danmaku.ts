@@ -10,7 +10,7 @@ import {
   probeVideo,
   readJSONFileSync,
 } from '@autorecord/core'
-import type { RecordExtraData } from '@autorecord/manager'
+import { readRecordExtraData } from '@autorecord/manager'
 import { DanmakuBurnEncoders, type DanmakuBurnEncoder, type Settings } from '@autorecord/shared'
 import { initManager } from '../core/manager-init'
 import { getRecords, type RecordModel } from '../core/db'
@@ -33,10 +33,9 @@ function findRecord(idOrPrefix: string): RecordModel {
   return matched[0]
 }
 
-function readExtraData(savePath: string): RecordExtraData {
+function readExtraData(savePath: string) {
   const extraDataPath = path.join(path.dirname(savePath), path.basename(savePath, path.extname(savePath)) + '.json')
-  if (!fs.existsSync(extraDataPath)) throw new Error(`Danmaku file not found: ${extraDataPath}`)
-  return JSON.parse(fs.readFileSync(extraDataPath, 'utf8')) as RecordExtraData
+  return readRecordExtraData(extraDataPath)
 }
 
 export function createRecordsASSCommand(): Command {
@@ -54,7 +53,7 @@ Examples:
 
       try {
         const record = findRecord(id)
-        const extraData = readExtraData(record.savePath)
+        const extraData = await readExtraData(record.savePath)
         const videoInfo = await probeVideo(record.savePath).catch(() => ({ width: undefined, height: undefined }))
         const ass = generateDanmakuASS(extraData, {
           videoWidth: videoInfo.width,
@@ -102,7 +101,7 @@ Examples:
 
       try {
         const record = findRecord(id)
-        const extraData = readExtraData(record.savePath)
+        const extraData = await readExtraData(record.savePath)
         const settings = getSettings()
 
         let lastPercent = -1

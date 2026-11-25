@@ -1,6 +1,13 @@
 import fs from 'fs'
 import path from 'path'
-import { createRecorderManager, Recorder, RecorderCreateOpts, RecordExtraData } from '@autorecord/manager'
+import {
+  createRecorderManager,
+  getRecordExtraDataLogPath,
+  readRecordExtraData,
+  recordExtraDataExists,
+  Recorder,
+  RecorderCreateOpts,
+} from '@autorecord/manager'
 import { provider as providerForDouYu } from '@autorecord/douyu-recorder'
 import { provider as providerForBilibili } from '@autorecord/bilibili-recorder'
 import { provider as providerForHuYa } from '@autorecord/huya-recorder'
@@ -145,6 +152,7 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
         // 直接把错误吞掉，影响不大
         function noop(): void {}
         fs.promises.rm(extraDataPath).catch(noop)
+        fs.promises.rm(getRecordExtraDataLogPath(extraDataPath)).catch(noop)
         fs.promises.rm(recordHandle.savePath).catch(noop)
 
         removeRecord(recordId)
@@ -158,7 +166,7 @@ export async function initRecorderManager(serverOpts: ServerOpts): Promise<void>
       })
 
       const extraDataPath = replaceExtName(recordHandle.savePath, '.json')
-      if (!recordDanmaku || !fs.existsSync(extraDataPath)) return
+      if (!recordDanmaku || !recordExtraDataExists(extraDataPath)) return
 
       if (autoBurnDanmakuOnRecordStop) {
         enqueueDanmakuBurn({ recordId, savePath: recordHandle.savePath, waitForFileStable: true })
@@ -229,9 +237,7 @@ export function getProviderAuthConfigs(): Record<string, Record<string, string>>
 // ass 看起来只有序列化和反序列化的库（如 ass-compiler），没有支持帮助排列弹幕的库，
 // 要自己实现，成本较高。所以先只简单实现个 srt 的，后面有需要的话再加个 ass 的版本。
 export async function genSRTFile(extraDataPath: string, srtPath: string, showSender = false): Promise<void> {
-  // TODO: 这里要不要考虑用 RecordExtraDataController 去操作？
-  const buffer = await fs.promises.readFile(extraDataPath)
-  const recordExtraData = JSON.parse(buffer.toString()) as RecordExtraData
+  const recordExtraData = await readRecordExtraData(extraDataPath)
 
   const parsedSRT = parseSync('')
 
